@@ -4,15 +4,13 @@ defmodule OCI do
   """
 
   @doc """
-  Hello world.
-
-  ## Examples
-
-      iex> OCI.hello()
-      :world
-
+  Starts the OCI Plug router on the given port.
   """
-  def hello do
-    :world
+  def child_spec(opts \\ []) do
+    Plug.Cowboy.child_spec(
+      scheme: :http,
+      plug: OCI.Router,
+      options: [port: opts[:port] || 4000]
+    )
   end
 end

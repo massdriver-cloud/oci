@@ -45,6 +45,7 @@ defmodule OCI.MixProject do
   defp deps do
     [
       {:plug, "~> 1.14"},
+      {:plug_cowboy, "~> 2.0"},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
