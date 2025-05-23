@@ -18,6 +18,23 @@ An [OCI](https://opencontainers.org/) (Open Container Initiative) compliant V2 r
 - Easy integration with Phoenix applications
 - Support for Docker and OCI image formats
 - Compatible with Docker CLI and ORAS tools
+- Support for hierarchical repository naming (namespace/name)
+
+## Repository Naming
+
+This registry supports the standard OCI repository naming convention with strict `namespace/name` format:
+
+- ✅ `myorg/myapp` - Standard namespace/name format
+- ✅ `library/nginx` - Library namespace
+- ✅ `company/project` - Company namespace
+- ❌ `myapp` - Single-level names not supported
+- ❌ `org/team/project` - Multi-level namespaces not supported
+
+Repository names must follow the pattern `{namespace}/{name}` where:
+- `namespace`: Organization, user, or library identifier
+- `name`: The specific image/artifact name
+
+This ensures consistent routing and storage organization while maintaining compatibility with standard container registry conventions.
 
 ## Installation
 
