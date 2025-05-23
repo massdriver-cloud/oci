@@ -1,0 +1,47 @@
+defmodule OCI.MixProject do
+  use Mix.Project
+
+  def project do
+    [
+      app: :oci,
+      version: "0.1.0",
+      elixir: "~> 1.15",
+      start_permanent: Mix.env() == :prod,
+      deps: deps(),
+      package: package(),
+      description:
+        "A Plug-based implementation of the OCI Distribution Specification (v2) registry server for Elixir applications. Provides a compliant HTTP API for container image distribution, supporting pull, push, and management operations.",
+      source_url: "https://github.com/massdriver-cloud/oci",
+      homepage_url: "https://github.com/massdriver-cloud/oci",
+      docs: [
+        main: "readme",
+        extras: ["README.md"]
+      ]
+    ]
+  end
+
+  # Run "mix help compile.app" to learn about applications.
+  def application do
+    [
+      extra_applications: [:logger]
+    ]
+  end
+
+  # Run "mix help deps" to learn about dependencies.
+  defp deps do
+    [
+      {:plug, "~> 1.14"},
+      {:ex_doc, "~> 0.29", only: :dev, runtime: false}
+    ]
+  end
+
+  defp package do
+    [
+      name: "oci",
+      licenses: ["Apache-2.0"],
+      links: %{
+        "GitHub" => "https://github.com/massdriver-cloud/oci"
+      }
+    ]
+  end
+end
