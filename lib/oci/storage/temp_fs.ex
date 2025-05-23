@@ -13,19 +13,32 @@ defmodule OCI.Storage.TempFS do
 
   def init_repo(_repo), do: :ok
 
-  def blob_exists?(repo, digest), do: File.exists?(blob_path(root(), repo, digest))
+  def blob_exists?(repo, digest) do
+    # Check global blobs directory for content-addressable storage
+    File.exists?(Path.join([root(), "_blobs", digest])) or
+      File.exists?(blob_path(root(), repo, digest))
+  end
 
   def get_blob(repo, digest) do
-    path = blob_path(root(), repo, digest)
+    # Try global blobs directory first
+    global_path = Path.join([root(), "_blobs", digest])
+    repo_path = blob_path(root(), repo, digest)
 
-    case File.read(path) do
-      {:ok, content} -> {:ok, content}
-      _ -> :error
+    case File.read(global_path) do
+      {:ok, content} ->
+        {:ok, content}
+
+      _ ->
+        case File.read(repo_path) do
+          {:ok, content} -> {:ok, content}
+          _ -> :error
+        end
     end
   end
 
-  def put_blob(repo, digest, content) do
-    path = blob_path(root(), repo, digest)
+  def put_blob(_repo, digest, content) do
+    # Store in global blobs directory for content-addressable storage
+    path = Path.join([root(), "_blobs", digest])
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, content)
     :ok
@@ -54,7 +67,10 @@ defmodule OCI.Storage.TempFS do
         actual = "sha256:" <> Base.encode16(:crypto.hash(:sha256, content), case: :lower)
 
         if digest == actual do
-          put_blob("_shared", digest, content)
+          # Store in global blobs directory for content-addressable storage
+          path = Path.join([root(), "_blobs", digest])
+          File.mkdir_p!(Path.dirname(path))
+          File.write!(path, content)
           File.rm(tmp)
           :ok
         else
@@ -67,12 +83,22 @@ defmodule OCI.Storage.TempFS do
   end
 
   def get_manifest(repo, reference) do
-    with {:ok, tags} <- read_tags(repo),
-         digest when is_binary(digest) <- Map.get(tags, reference),
-         {:ok, content} <- File.read(manifest_path(root(), repo, digest)) do
-      {:ok, content, "application/vnd.oci.image.manifest.v1+json"}
-    else
-      _ -> :error
+    # First try to resolve as a tag
+    case read_tags(repo) do
+      {:ok, tags} ->
+        digest = Map.get(tags, reference) || reference
+
+        case File.read(manifest_path(root(), repo, digest)) do
+          {:ok, content} -> {:ok, content, "application/vnd.oci.image.manifest.v1+json"}
+          _ -> :error
+        end
+
+      _ ->
+        # No tags file, try direct digest lookup
+        case File.read(manifest_path(root(), repo, reference)) do
+          {:ok, content} -> {:ok, content, "application/vnd.oci.image.manifest.v1+json"}
+          _ -> :error
+        end
     end
   end
 
@@ -82,14 +108,8 @@ defmodule OCI.Storage.TempFS do
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, content)
 
-    tags =
-      case read_tags(repo) do
-        {:ok, t} -> t
-        _ -> %{}
-      end
-
-    updated = Map.put(tags, reference, digest)
-    File.write!(tag_path(root(), repo), Jason.encode!(updated))
+    # Only update tags if reference is not a digest (i.e., it's a tag name)
+    unless reference =~ ~r/^sha256:/, do: update_tag(repo, reference, digest)
     :ok
   end
 
@@ -102,24 +122,77 @@ defmodule OCI.Storage.TempFS do
 
   def list_repositories() do
     root = root()
-    {:ok, dirs} = File.ls(root)
-    {:ok, Enum.filter(dirs, fn d -> File.dir?(Path.join(root, d)) end)}
+
+    case File.ls(root) do
+      {:ok, dirs} ->
+        repos =
+          dirs
+          |> Enum.filter(fn d ->
+            # Filter out internal directories
+            not String.starts_with?(d, ".") and
+              not String.starts_with?(d, "_") and
+              File.dir?(Path.join(root, d))
+          end)
+          |> Enum.flat_map(fn namespace_dir ->
+            namespace_path = Path.join(root, namespace_dir)
+
+            case File.ls(namespace_path) do
+              {:ok, names} ->
+                names
+                |> Enum.filter(fn name ->
+                  File.dir?(Path.join(namespace_path, name)) and
+                    not String.starts_with?(name, ".") and
+                    not String.starts_with?(name, "_")
+                end)
+                |> Enum.map(fn name -> "#{namespace_dir}/#{name}" end)
+
+              _ ->
+                []
+            end
+          end)
+
+        {:ok, repos}
+
+      _ ->
+        {:ok, []}
+    end
   end
 
   def delete_blob(repo, digest) do
-    File.rm(blob_path(root(), repo, digest))
+    # Try to delete from both global and repo-specific paths
+    global_path = Path.join([root(), "_blobs", digest])
+    repo_path = blob_path(root(), repo, digest)
+
+    File.rm(global_path)
+    File.rm(repo_path)
     :ok
   end
 
   def delete_manifest(repo, reference) do
-    with {:ok, tags} <- read_tags(repo),
-         digest <- Map.get(tags, reference),
-         :ok <- File.rm(manifest_path(root(), repo, digest)) do
-      updated = Map.delete(tags, reference)
-      File.write!(tag_path(root(), repo), Jason.encode!(updated))
-      :ok
-    else
-      _ -> :error
+    case read_tags(repo) do
+      {:ok, tags} ->
+        case Map.get(tags, reference) do
+          digest when is_binary(digest) ->
+            case File.rm(manifest_path(root(), repo, digest)) do
+              :ok ->
+                updated = Map.delete(tags, reference)
+                File.write!(tag_path(root(), repo), Jason.encode!(updated))
+                :ok
+
+              _ ->
+                :error
+            end
+
+          _ ->
+            # Try to delete by reference directly (if it's a digest)
+            case File.rm(manifest_path(root(), repo, reference)) do
+              :ok -> :ok
+              _ -> :error
+            end
+        end
+
+      _ ->
+        :error
     end
   end
 
@@ -133,4 +206,17 @@ defmodule OCI.Storage.TempFS do
   end
 
   defp root(), do: Process.get(:oci_tempfs_root, ".oci_tmp")
+
+  defp update_tag(repo, tag, digest) do
+    tags =
+      case read_tags(repo) do
+        {:ok, t} -> t
+        _ -> %{}
+      end
+
+    updated = Map.put(tags, tag, digest)
+    tag_file = tag_path(root(), repo)
+    File.mkdir_p!(Path.dirname(tag_file))
+    File.write!(tag_file, Jason.encode!(updated))
+  end
 end
