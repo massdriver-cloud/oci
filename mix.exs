@@ -4,7 +4,7 @@ defmodule OCI.MixProject do
   def project do
     [
       app: :oci,
-      version: "0.1.0",
+      version: "0.0.1",
       elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -15,6 +15,7 @@ defmodule OCI.MixProject do
       homepage_url: "https://github.com/massdriver-cloud/oci",
       docs: [
         main: "readme",
+        logo: "logo.png",
         extras: ["README.md"]
       ],
       aliases: aliases()
@@ -68,7 +69,13 @@ defmodule OCI.MixProject do
       licenses: ["Apache-2.0"],
       links: %{
         "GitHub" => "https://github.com/massdriver-cloud/oci"
-      }
+      },
+      files: [
+        "lib",
+        "mix.exs",
+        "README.md",
+        "logo.png"
+      ]
     ]
   end
 end
