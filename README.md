@@ -83,10 +83,38 @@ The following configuration options are available:
 mix test
 ```
 
+### Running Tests in Watch Mode
+
+To automatically run tests when files change:
+
+```bash
+mix test.watch
+```
+
 ### Running Credo
 
 ```bash
 mix credo
+```
+
+### Running Dialyzer
+
+```bash
+mix dialyzer
+```
+
+### Running Documentation Generation
+
+```bash
+mix docs
+```
+
+### Running Full QA Suite
+
+To run all quality assurance checks (tests, credo, dialyzer, and docs generation):
+
+```bash
+mix qa
 ```
 
 ## Contributing
@@ -94,8 +122,15 @@ mix credo
 1. Fork the repository
 2. Create your feature branch (`git checkout -b my-new-feature`)
 3. Commit your changes (`git commit -am 'Add some feature'`)
-4. Push to the branch (`git push origin my-new-feature`)
-5. Create new Pull Request
+4. Run the QA suite to ensure quality (`mix qa`)
+5. Push to the branch (`git push origin my-new-feature`)
+6. Create new Pull Request
+
+Note: Before submitting a PR, please ensure all QA checks pass by running `mix qa`. This will run:
+- Unit tests
+- Code style checks (Credo)
+- Static type checking (Dialyzer)
+- Documentation generation
 
 ## License
 

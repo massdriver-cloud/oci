@@ -16,6 +16,19 @@ defmodule OCI.MixProject do
       docs: [
         main: "readme",
         extras: ["README.md"]
+      ],
+      aliases: aliases()
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
+        test: :test,
+        credo: :dev,
+        dialyzer: :dev,
+        docs: :dev,
+        qa: :test
       ]
     ]
   end
@@ -31,7 +44,21 @@ defmodule OCI.MixProject do
   defp deps do
     [
       {:plug, "~> 1.14"},
-      {:ex_doc, "~> 0.29", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.29", only: :dev, runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:mix_test_watch, "~> 1.1", only: [:dev, :test], runtime: false}
+    ]
+  end
+
+  defp aliases do
+    [
+      qa: [
+        "test",
+        "credo",
+        "dialyzer",
+        "docs"
+      ]
     ]
   end
 

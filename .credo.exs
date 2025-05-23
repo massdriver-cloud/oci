@@ -3,8 +3,8 @@
     %{
       name: "default",
       files: %{
-        included: ["lib/", "src/", "test/", "web/", "apps/*/lib/", "apps/*/src/", "apps/*/test/", "apps/*/web/"],
-        excluded: [~r"/_build/", ~r"/deps/", ~r"/node_modules/"]
+        included: ["lib/", "src/", "test/"],
+        excluded: [~r"/_build/", ~r"/deps/"]
       },
       checks: [
         {Credo.Check.Consistency.ExceptionNames},
@@ -42,7 +42,6 @@
         {Credo.Check.Refactor.CondStatements},
         {Credo.Check.Refactor.CyclomaticComplexity},
         {Credo.Check.Refactor.DoubleBooleanNegation},
-        {Credo.Check.Refactor.EndBlock},
         {Credo.Check.Refactor.FunctionArity},
         {Credo.Check.Refactor.MatchInCondition},
         {Credo.Check.Refactor.NegatedConditionsInUnless},
@@ -55,7 +54,6 @@
         {Credo.Check.Warning.ExpensiveEmptyEnumCheck},
         {Credo.Check.Warning.IExPry},
         {Credo.Check.Warning.IoInspect},
-        {Credo.Check.Warning.LazyLogging},
         {Credo.Check.Warning.OperationOnSameValues},
         {Credo.Check.Warning.OperationWithConstantResult},
         {Credo.Check.Warning.UnusedEnumOperation},
