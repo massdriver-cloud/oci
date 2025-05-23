@@ -46,6 +46,7 @@ defmodule OCI.MixProject do
     [
       {:plug, "~> 1.14"},
       {:plug_cowboy, "~> 2.0"},
+      {:jason, "~> 1.4"},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
