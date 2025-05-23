@@ -49,7 +49,8 @@ defmodule OCI.MixProject do
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:mix_test_watch, "~> 1.1", only: [:dev, :test], runtime: false}
+      {:mix_test_watch, "~> 1.1", only: [:dev, :test], runtime: false},
+      {:elixir_uuid, "~> 1.2"}
     ]
   end
 
