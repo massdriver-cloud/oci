@@ -5,7 +5,7 @@
 [![Hex.pm](https://img.shields.io/hexpm/v/oci.svg)](https://hex.pm/packages/oci)
 [![Hex.pm](https://img.shields.io/hexpm/dt/oci.svg)](https://hex.pm/packages/oci)
 [![Hex.pm](https://img.shields.io/hexpm/l/oci.svg)](https://hex.pm/packages/oci)
-[![CI](https://github.com/massdriver/oci/actions/workflows/ci.yml/badge.svg)](https://github.com/massdriver/oci/actions/workflows/ci.yml)
+[![CI](https://github.com/massdriver-cloud/oci/actions/workflows/ci.yml/badge.svg)](https://github.com/massdriver-cloud/oci/actions/workflows/ci.yml)
 [![Credo](https://img.shields.io/badge/Credo-Enabled-brightgreen)](https://github.com/rrrene/credo)
 
 An [OCI](https://opencontainers.org/) (Open Container Initiative) compliant V2 registry server implementation for Elixir. This library provides a plug-based solution that can be integrated into any Elixir web application, with configurable storage and authentication adapters.
