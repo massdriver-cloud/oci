@@ -165,7 +165,7 @@ defmodule OCI.Registry do
         # It's hard to tell though because so many HTTP requests are made
         # Thus the Inspector.pry() if it can get from the process dictionary
         # is super helpful.
-        OCI.Inspector.pry(binding())
+        # OCI.Inspector.pry(binding())
 
         if computed == hash, do: :ok, else: {:error, :DIGEST_INVALID}
 

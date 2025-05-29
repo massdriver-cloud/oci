@@ -28,6 +28,13 @@ defmodule OCI.Storage.Local do
 
   @impl true
   def initiate_blob_upload(%__MODULE__{} = storage, repo) do
+
+
+    Ok, so we need to try a directory of monotonic chunks, but now the blob exists function is broken when we change from file to dir again,
+
+
+
+
     # Create upload directory with UUID
     uuid = UUID.uuid4()
     upload_dir = uploads_dir(storage, repo)
@@ -47,11 +54,13 @@ defmodule OCI.Storage.Local do
     case upload_exists?(storage, repo, uuid) do
       {:ok, _previous_size} ->
         upload_path = upload_path(storage, repo, uuid)
-        # append the chunk to the upload path
-        File.write!(upload_path, chunk, [:append])
-        upload_size = File.stat!(upload_path).size
+        monotonic_time = System.monotonic_time(:millisecond)
 
-        # return the range that was just uploaded
+        File.write!("#{upload_path}.chunk.#{monotonic_time}", chunk, [:create])
+        File.write!(upload_path, chunk, [:append])
+
+        # return the total range of the upload
+        upload_size = File.stat!(upload_path).size
         {:ok, "0-#{upload_size - 1}"}
 
       err ->
@@ -79,6 +88,8 @@ defmodule OCI.Storage.Local do
 
         upload_path = upload_path(storage, repo, uuid)
         digest_path = digest_path(storage, repo, digest)
+
+        OCI.Inspector.pry(binding())
 
         with :ok <- OCI.Registry.verify_digest(File.read!(upload_path), digest),
              :ok <- File.rename(upload_path, digest_path) do

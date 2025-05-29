@@ -313,6 +313,9 @@ defmodule OCI.Plug do
        when not is_nil(digest) do
     registry = conn.private[:oci_registry]
 
+    # Maybe I shouldn't touch it on create?
+    # What chunks have i received?
+
     # Must have a content-length, it maybe 0
     content_length =
       conn |> get_req_header("content-length") |> List.first() |> String.to_integer()
