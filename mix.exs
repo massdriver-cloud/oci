@@ -18,18 +18,23 @@ defmodule OCI.MixProject do
         logo: "logo.png",
         extras: ["README.md"]
       ],
-      aliases: aliases()
+      aliases: aliases(),
+      test_coverage: [tool: ExCoveralls]
     ]
   end
 
   def cli do
     [
       preferred_envs: [
-        test: :test,
+        "coveralls.detail": :test,
+        "coveralls.html": :test,
+        "coveralls.post": :test,
+        coveralls: :test,
         credo: :dev,
         dialyzer: :dev,
         docs: :dev,
-        qa: :test
+        qa: :test,
+        test: :test
       ]
     ]
   end
@@ -44,14 +49,18 @@ defmodule OCI.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:plug, "~> 1.14"},
-      {:plug_cowboy, "~> 2.0"},
-      {:jason, "~> 1.4"},
-      {:ex_doc, "~> 0.29", only: :dev, runtime: false},
+      {:excoveralls, "~> 0.18", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.29", only: :dev, runtime: false},
+      {:jason, "~> 1.4", optional: true},
       {:mix_test_watch, "~> 1.1", only: [:dev, :test], runtime: false},
-      {:elixir_uuid, "~> 1.2"}
+      {:phoenix, ">= 1.5.0 and < 2.0.0", optional: true},
+      {:plug, ">= 1.10.0 and < 2.0.0"},
+      {:plug_cowboy, "~> 2.7", only: :test},
+      {:temp, "~> 0.4", only: [:test, :dev]},
+      {:typed_struct, "~> 0.3"},
+      {:uuid, "~> 1.1", override: true}
     ]
   end
 

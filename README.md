@@ -22,21 +22,18 @@ An [OCI](https://opencontainers.org/) (Open Container Initiative) compliant V2 r
 
 ## Repository Naming
 
-This registry supports the standard OCI repository naming convention with strict `namespace/name` format:
+This registry supports the standard OCI repository naming convention with strict `namespace/name`, `org/team/project`, or whatever wild ass `/` party you can dream up.
 
+- ✅ `myapp` - Single-level names
 - ✅ `myorg/myapp` - Standard namespace/name format
-- ✅ `library/nginx` - Library namespace
-- ✅ `company/project` - Company namespace
-- ❌ `myapp` - Single-level names not supported
-- ❌ `org/team/project` - Multi-level namespaces not supported
-
-Repository names must follow the pattern `{namespace}/{name}` where:
-- `namespace`: Organization, user, or library identifier
-- `name`: The specific image/artifact name
+- ✅ `org/team/project` - Multi-level namespaces
+- IT CAN JUST KEEP GOING (I THINK)
 
 This ensures consistent routing and storage organization while maintaining compatibility with standard container registry conventions.
 
 ## Installation
+
+**This is not yet production-ready.**
 
 The package can be installed by adding `oci` to your list of dependencies in `mix.exs`:
 
@@ -53,45 +50,87 @@ end
 ### Basic Phoenix Integration
 
 ```elixir
-# Example router.ex configuration
-# TODO: Add router configuration example
+# In your router.ex
+use Phoenix.Router
+import OCI.PhoenixRouter
+
+scope "/v2" do
+  oci_routes(repo: ":namespace/:name")
+end
 ```
 
 ### Docker CLI Interaction
 
 ```bash
-# Example Docker CLI commands
-# TODO: Add Docker CLI examples
+# Pull an image
+docker pull localhost:5000/myorg/myapp:latest
+
+# Push an image
+docker push localhost:5000/myorg/myapp:latest
+
+# List tags
+curl -X GET http://localhost:5000/v2/myorg/myapp/tags/list
 ```
 
 ### ORAS CLI Interaction
 
 ```bash
-# Example ORAS CLI commands
-# TODO: Add ORAS CLI examples
+# Push an artifact
+oras push localhost:5000/myorg/myapp:latest ./my-artifact.txt
+
+# Pull an artifact
+oras pull localhost:5000/myorg/myapp:latest
 ```
 
 ### Custom Storage Adapter
 
 ```elixir
-# Example storage adapter implementation
-# TODO: Add storage adapter example
+defmodule MyStorageAdapter do
+  @behaviour OCI.Storage.Adapter
+
+  defstruct [:path]
+
+  def init(config) do
+    %__MODULE__{path: Keyword.fetch!(config, :path)}
+  end
+
+  # Implement required callbacks...
+end
 ```
 
 ### Custom Authentication
 
 ```elixir
-# Example authentication implementation
-# TODO: Add authentication example
+defmodule MyAuthAdapter do
+  @behaviour OCI.Auth.Adapter
+
+  def authenticate(authorization) do
+    # Implement your authentication logic
+  end
+
+  def authorize(ctx, action, resource) do
+    # Implement your authorization logic
+  end
+
+  def challenge(registry) do
+    {"Basic", ~s(realm="#{registry.realm}")}
+  end
+end
 ```
 
 ## Configuration
 
-The following configuration options are available:
+The following configuration options are available in your `config.exs`:
 
 ```elixir
-# Example config.exs configuration
-# TODO: Add configuration examples
+config :oci,
+  storage: [
+    adapter: OCI.Storage.Local,
+    config: [
+      path: "./tmp/"
+    ]
+  ],
+  json_library: Jason
 ```
 
 ## Development
@@ -161,3 +200,15 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 - [Docker Registry HTTP API V2](https://docs.docker.com/registry/spec/api/)
 - [ORAS CLI](https://oras.land/cli/)
 
+## TODO
+
+* [ ] Expand registry error results to include details from storage adapters so provide more helpful http responses.
+* [ ] move a check for the registry to the top of the plug and return {:error, :NAME_UNKNOWN} so the reset of the registry doesnt have to be so defensive.
+* [ ] NAME_INVALID - Registry should be able to validate the name (storage adapter?
+* [ ] Conformance [Github Action](https://github.com/opencontainers/distribution-spec/tree/main/conformance#github-action)
+  * [ ] Include conformance report in PR comment
+  * [ ] Publish report on hex release
+* Config for optional registry configs
+  * [ ] disable mounting
+  * [ ] Support OCI-Chunk-Min-Length: <size>
+  * [ ] Referrers API

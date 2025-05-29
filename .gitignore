@@ -25,18 +25,9 @@ oci-*.tar
 # Temporary files, for example, from tests.
 /tmp/
 
-# Elixir language server
-/.elixir_ls/
+# Local todo list.
+TODO.md
 
-# Local environment config
-.env
-.env.*
-
-# OS generated files
-.DS_Store
-
-# Editor directories and files
-.idea/
-.vscode/
-*.swp
-*~
+# Conformance test output
+.tmp
+.elixir_ls

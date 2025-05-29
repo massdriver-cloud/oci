@@ -1,0 +1,37 @@
+defmodule OCI.ConformanceTest do
+  # @moduledoc false
+  use ExUnit.Case, async: false
+
+  Conformance.failures()
+  |> Enum.each(fn conftest ->
+    %{
+      "ContainerHierarchyTexts" => container_hierarchy,
+      "LeafNodeText" => leaf,
+      "Failure" => %{
+        "Location" => %{"FileName" => file, "LineNumber" => line},
+        "Message" => message
+      }
+    } = conftest
+
+    rand = Enum.random(1..1_000_000)
+
+    name = (container_hierarchy ++ [leaf, Integer.to_string(rand)]) |> Enum.join(" ")
+    location = "#{file}:#{line}"
+    msg = message
+
+    quote =
+      quote do
+        test unquote(name) do
+          refute unquote(msg), """
+          Location: #{unquote(location)}
+          """
+        end
+      end
+
+    Module.eval_quoted(__MODULE__, quote)
+  end)
+
+  test "no conformance failures" do
+    assert length(Conformance.failures()) == 0
+  end
+end
