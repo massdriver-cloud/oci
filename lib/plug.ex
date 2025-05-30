@@ -215,7 +215,7 @@ defmodule OCI.Plug do
                repo,
                upload_id,
                chunk,
-               "0-#{String.length(chunk) - 1}"
+               "0-#{:erlang.byte_size(chunk) - 1}"
              ) do
           {:ok, _, _} ->
             :ok
@@ -279,10 +279,9 @@ defmodule OCI.Plug do
   defp upload_chunk(conn, repo, uuid) do
     registry = conn.private[:oci_registry]
     chunk = conn.assigns[:raw_body]
-    # TODO: DONT CALCULATE CONTENT RANGE, SEND SIZE
-    content_range = calculate_content_range(conn)
+    size = :erlang.byte_size(chunk)
 
-    case Registry.upload_chunk(registry, repo, uuid, chunk, content_range) do
+    case Registry.upload_chunk(registry, repo, uuid, chunk, size) do
       {:ok, location, range} ->
         conn
         |> put_resp_header("location", location)
@@ -536,31 +535,6 @@ defmodule OCI.Plug do
     last = params["last"]
 
     %Pagination{n: n, last: last}
-  end
-
-  defp calculate_content_range(conn) do
-    conn
-    |> get_req_header("content-range")
-    |> List.first()
-    |> case do
-      nil ->
-        get_req_header(conn, "content-length")
-        |> List.first()
-        |> case do
-          nil ->
-            nil
-
-          "0" ->
-            "0-0"
-
-          content_length ->
-            length = String.to_integer(content_length)
-            "0-#{length - 1}"
-        end
-
-      content_range ->
-        content_range
-    end
   end
 
   defp ensure_request_id(conn) do

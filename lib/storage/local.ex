@@ -2,6 +2,28 @@
 defmodule OCI.Storage.Local do
   @moduledoc """
   Local storage adapter for OCI.
+
+  File system structure:
+  ```
+  <root_path>/
+  ├── <repo>/
+  │   ├── blobs/
+  │   │   └── sha256:<digest>  # Stored blobs
+  │   ├── uploads/
+  │   │   └── <uuid>/          # Temporary upload directory
+  │   │       └── chunk.*      # Chunked upload files
+  │   ├── manifests/           # Manifest storage
+  │   │   └── sha256:<digest>  # Stored manifests
+  │   └── manifest/
+  │       └── tags/            # Tag references
+  │           └── <tag>        # Tag to digest mapping
+  ```
+
+  The local storage adapter implements the OCI distribution spec by storing:
+  - Blobs in the `blobs/` directory, named by their digest
+  - Manifests in the `manifests/` directory, named by their digest
+  - Tag references in `manifest/tags/`, mapping tags to manifest digests
+  - Temporary uploads in `uploads/<uuid>/` during chunked uploads
   """
 
   @behaviour OCI.Storage.Adapter
@@ -28,20 +50,13 @@ defmodule OCI.Storage.Local do
 
   @impl true
   def initiate_blob_upload(%__MODULE__{} = storage, repo) do
-
-
-    Ok, so we need to try a directory of monotonic chunks, but now the blob exists function is broken when we change from file to dir again,
-
-
-
-
     # Create upload directory with UUID
     uuid = UUID.uuid4()
-    upload_dir = uploads_dir(storage, repo)
-    :ok = File.mkdir_p!(upload_dir)
+    uploads_dir = uploads_dir(storage, repo)
+    :ok = File.mkdir_p!(uploads_dir)
 
-    upload_path = upload_path(storage, repo, uuid)
-    File.touch!(upload_path)
+    upload_dir = upload_dir(storage, repo, uuid)
+    File.mkdir_p!(upload_dir)
 
     {:ok, uuid}
   end
@@ -52,15 +67,15 @@ defmodule OCI.Storage.Local do
 
   def upload_chunk(%__MODULE__{} = storage, repo, uuid, chunk, _content_length) do
     case upload_exists?(storage, repo, uuid) do
-      {:ok, _previous_size} ->
-        upload_path = upload_path(storage, repo, uuid)
+      :ok ->
+        upload_dir = upload_dir(storage, repo, uuid)
         monotonic_time = System.monotonic_time(:millisecond)
 
-        File.write!("#{upload_path}.chunk.#{monotonic_time}", chunk, [:create])
-        File.write!(upload_path, chunk, [:append])
+        File.write!("#{upload_dir}/chunk.#{monotonic_time}", chunk)
+        data = combine_chunks(upload_dir)
 
         # return the total range of the upload
-        upload_size = File.stat!(upload_path).size
+        upload_size = :erlang.byte_size(data)
         {:ok, "0-#{upload_size - 1}"}
 
       err ->
@@ -71,28 +86,42 @@ defmodule OCI.Storage.Local do
   @impl true
   def get_upload_status(%__MODULE__{} = storage, repo, uuid) do
     case upload_exists?(storage, repo, uuid) do
-      {:ok, upload_size} ->
-        {:ok, "0-#{upload_size - 1}"}
+      :ok ->
+        upload_dir = upload_dir(storage, repo, uuid)
+        data = combine_chunks(upload_dir)
+        {:ok, "0-#{:erlang.byte_size(data) - 1}"}
 
       err ->
         err
     end
   end
 
+  defp combine_chunks(upload_dir) do
+    chunks = File.ls!(upload_dir)
+
+    chunks
+    |> Enum.map(fn chunk -> File.read!(Path.join(upload_dir, chunk)) end)
+    |> Enum.join()
+  end
+
   @impl true
   def complete_blob_upload(%__MODULE__{} = storage, repo, uuid, digest) do
     case upload_exists?(storage, repo, uuid) do
-      {:ok, _} ->
+      :ok ->
         blob_path = blobs_dir(storage, repo)
         File.mkdir_p!(blob_path)
 
-        upload_path = upload_path(storage, repo, uuid)
+        upload_dir = upload_dir(storage, repo, uuid)
         digest_path = digest_path(storage, repo, digest)
 
         OCI.Inspector.pry(binding())
 
-        with :ok <- OCI.Registry.verify_digest(File.read!(upload_path), digest),
-             :ok <- File.rename(upload_path, digest_path) do
+        data = combine_chunks(upload_dir)
+
+        IO.inspect(digest_path, label: "COMPLETED DIGEST PATH")
+
+        with :ok <- OCI.Registry.verify_digest(data, digest),
+             :ok <- File.write!(digest_path, data) do
           :ok
         else
           {:error, :DIGEST_INVALID} -> {:error, :DIGEST_INVALID}
@@ -106,11 +135,11 @@ defmodule OCI.Storage.Local do
 
   @impl true
   def cancel_blob_upload(%__MODULE__{} = storage, repo, uuid) do
-    upload_path = upload_path(storage, repo, uuid)
+    upload_dir = upload_dir(storage, repo, uuid)
 
     case upload_exists?(storage, repo, uuid) do
-      {:ok, _} ->
-        File.rm_rf!(upload_path)
+      :ok ->
+        File.rm_rf!(upload_dir)
         :ok
 
       err ->
@@ -130,10 +159,10 @@ defmodule OCI.Storage.Local do
   end
 
   def upload_exists?(%__MODULE__{} = storage, repo, uuid) do
-    path = upload_path(storage, repo, uuid)
+    dir = upload_dir(storage, repo, uuid)
 
-    case File.exists?(path) do
-      true -> {:ok, File.stat!(path).size}
+    case File.exists?(dir) do
+      true -> :ok
       false -> {:error, :BLOB_UPLOAD_UNKNOWN}
     end
   end
@@ -252,7 +281,8 @@ defmodule OCI.Storage.Local do
       if String.starts_with?(reference, "sha256:") and reference != digest do
         {:error, :MANIFEST_UNKNOWN}
       else
-        {:ok, "application/vnd.oci.image.manifest.v1+json", digest, String.length(manifest_json)}
+        {:ok, "application/vnd.oci.image.manifest.v1+json", digest,
+         :erlang.byte_size(manifest_json)}
       end
     else
       {:error, :MANIFEST_UNKNOWN}
@@ -314,7 +344,7 @@ defmodule OCI.Storage.Local do
     Path.join([repo_dir(storage, repo), "uploads"])
   end
 
-  defp upload_path(%__MODULE__{} = storage, repo, uuid) do
+  defp upload_dir(%__MODULE__{} = storage, repo, uuid) do
     Path.join([uploads_dir(storage, repo), uuid])
   end
 
