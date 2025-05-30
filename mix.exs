@@ -6,6 +6,7 @@ defmodule OCI.MixProject do
       app: :oci,
       version: "0.0.1",
       elixir: "~> 1.15",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       package: package(),
@@ -22,6 +23,10 @@ defmodule OCI.MixProject do
       test_coverage: [tool: ExCoveralls]
     ]
   end
+
+  # Specifies which paths to compile per environment.
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
 
   def cli do
     [
