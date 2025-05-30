@@ -49,6 +49,11 @@ defmodule OCI.Registry do
   @doc """
   Uploads a chunk of data to an existing blob upload.
 
+  **Note:** you cannot depend on a chunk range, its not sent on all chunk uploads.
+  You can't fake one either, because a previous chunk may have been uploaded out of order.
+  You could read the whole blob in and calculate the range, but that's a read with no purpose
+  because it will always pass verification.
+
   ## Parameters
     - registry: The registry instance
     - repo: The repository name
@@ -60,31 +65,21 @@ defmodule OCI.Registry do
     - `{:ok, location, range}` where location is the URL for the next chunk upload and range is the current range of uploaded bytes
     - `{:error, reason}` if the upload fails
   """
-
-  # Ok, so we can't guarantee content-range, so we'll have to make it up to prevent overlap test.
-  # Adding this in breaks everything, removing it breaks 5 things (only three if we never send content range in the first place)
-  # def upload_chunk(%{storage: storage}, repo, uuid, chunk, nil) do
-  #   content_range = "0-#{byte_size(chunk) - 1}"
-  #   upload_chunk(storage, repo, uuid, chunk, content_range)
-  # end
-
-  def upload_chunk(%{storage: storage}, repo, uuid, chunk, nil) do
-    chunk_range = calculate_range(chunk)
-    upload_chunk(storage, repo, uuid, chunk, chunk_range)
-  end
-
-  def upload_chunk(%{storage: storage}, repo, uuid, chunk, chunk_range) do
+  def upload_chunk(%{storage: storage}, repo, uuid, chunk, maybe_chunk_range) do
     reg = adapter(storage)
 
     case reg.upload_exists?(storage, repo, uuid) do
       :ok ->
-        IO.inspect(chunk_range, label: "=========== CHUNK RANGE ===========")
+        IO.inspect(maybe_chunk_range, label: "=========== CHUNK RANGE ===========")
         {:ok, size} = reg.get_upload_size(storage, repo, uuid)
         IO.inspect(size, label: "=========== SIZE ===========")
 
-        result = storage.__struct__.upload_chunk(storage, repo, uuid, chunk, chunk_range)
+        result = storage.__struct__.upload_chunk(storage, repo, uuid, chunk, maybe_chunk_range)
         IO.inspect(result, label: "=========== RESULT (IF ORDER WAS OK...) ===========")
 
+        # I'm adding verify to respond with 416 errors when out of order, but something about
+        # verify is breaking everything else.
+        #
         # Something about this breaks 26 calls, but worse is that the output is lost in phx500.
         # => the nil value, my hypothesis, so what happens when we nil check with and without
         #    the line below?
@@ -99,7 +94,7 @@ defmodule OCI.Registry do
         #   [ ] Effect on conf test failures?
         # [ ] How does calculate range also break in nil checking?
         #
-        order_ok = verify_upload_order(size, chunk_range)
+        order_ok = verify_upload_order(size, maybe_chunk_range)
         IO.inspect(order_ok, label: "=========== ORDER OK ===========")
 
         case result do
@@ -308,7 +303,8 @@ defmodule OCI.Registry do
   """
   @spec calculate_range(bitstring(), non_neg_integer() | nil) :: nonempty_binary()
 
-  def calculate_range(data, start_byte \\ 0) do
+  # TODO: AM I CALCULATING RANGE CORRECTLY?
+  def calculate_range(data, start_byte) do
     end_byte = start_byte + byte_size(data) - 1
     "#{start_byte}-#{end_byte}"
   end
@@ -320,20 +316,18 @@ defmodule OCI.Registry do
     {range_start, range_end}
   end
 
-  # TODO: it looks like an empty blob {"0", nil} is being uploaded
-  # What happens if we turn nil checking on, this will be set (to something weird)
-  # What do we do in this scenario, is this an error that the conftest can handle?
-  #
-  # if we turn nil checking ON this get skipped and
-  defp verify_upload_order(current_size, nil) do
-    require IEx
-    IEx.pry()
+  # It is ok to receive an empty chunk upload?
+  # When adding verification, 26 tests initially broke,
+  # i found by adding this in they passed.
+  # Need to figure out where in the spec the range is sent
+  # to make validity checking more clear. This seems like a hack, but
+  # its just a part of the spec???
+  defp verify_upload_order(_current_size, nil) do
+    :ok
   end
 
   defp verify_upload_order(current_size, range) do
-    OCI.Inspector.pry(binding())
-
-    {range_start, range_end} = parse_range(range)
+    {range_start, _range_end} = parse_range(range)
 
     if range_start == current_size do
       :ok

@@ -67,14 +67,14 @@ defmodule OCI.Storage.Local do
 
     File.write!("#{upload_dir}/chunk.#{monotonic_time}", chunk)
 
-    upload_range =
+    total_range =
       upload_dir
       |> combine_chunks()
-      |> OCI.Registry.calculate_range()
+      |> OCI.Registry.calculate_range(0)
 
     # TODO: move this note to the adapter
     # return the total range of the upload
-    {:ok, upload_range}
+    {:ok, total_range}
   end
 
   @impl true
@@ -91,7 +91,7 @@ defmodule OCI.Storage.Local do
       :ok ->
         upload_dir = upload_dir(storage, repo, uuid)
         data = combine_chunks(upload_dir)
-        range = OCI.Registry.calculate_range(data)
+        range = OCI.Registry.calculate_range(data, 0)
         {:ok, range}
 
       err ->
