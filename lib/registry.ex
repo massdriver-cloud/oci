@@ -82,30 +82,6 @@ defmodule OCI.Registry do
     end
   end
 
-  def upload_chunk_X(%{storage: storage}, repo, uuid, chunk, maybe_chunk_range) do
-    reg = adapter(storage)
-
-    case reg.upload_exists?(storage, repo, uuid) do
-      :ok ->
-        # TODO: verify the fucking size and make these tests pass!
-        {:ok, size} = reg.get_upload_size(storage, repo, uuid)
-
-        order_ok = verify_upload_order(size, maybe_chunk_range)
-        IO.inspect(order_ok, label: "=========== ORDER OK ===========")
-
-        case reg.upload_chunk(storage, repo, uuid, chunk, maybe_chunk_range) do
-          {:ok, range} ->
-            {:ok, blobs_uploads_path(repo, uuid), range}
-
-          error ->
-            error
-        end
-
-      err ->
-        err
-    end
-  end
-
   @doc """
   Gets the status of an ongoing blob upload.
 
