@@ -204,4 +204,18 @@ defmodule OCI.Registry do
   defp blobs_uploads_path(repo, uuid) do
     "/v2/#{repo}/blobs/uploads/#{uuid}"
   end
+
+  @doc """
+  Calculates the range of a chunk of data.
+  ## Examples
+    iex> OCI.Registry.calculate_range("hello")
+    "0-4"
+    iex> OCI.Registry.calculate_range("hello", 1)
+    "1-5"
+  """
+  @spec calculate_range(bitstring(), non_neg_integer() | nil) :: nonempty_binary()
+  def calculate_range(data, start_byte \\ 0) do
+    end_byte = start_byte + byte_size(data) - 1
+    "#{start_byte}-#{end_byte}"
+  end
 end
