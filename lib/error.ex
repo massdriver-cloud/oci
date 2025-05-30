@@ -1,4 +1,10 @@
 defmodule OCI.Error do
+  @moduledoc """
+  Error codes for the OCI Registry API.
+
+  This module defines the error codes and messages for the OCI Registry API.
+  It also provides a function to initialize an error struct with a given code and details.
+  """
   use TypedStruct
 
   @errors %{
