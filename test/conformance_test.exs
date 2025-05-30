@@ -2,6 +2,14 @@ defmodule OCI.ConformanceTest do
   # @moduledoc false
   use ExUnit.Case, async: false
 
+  setup_all do
+    on_exit(fn ->
+      config = Application.get_env(:oci, :storage)
+      local_path = config[:config][:path]
+      File.rm_rf!(local_path)
+    end)
+  end
+
   test "has run conformance specs" do
     assert length(Conformance.reports()) > 0
   end

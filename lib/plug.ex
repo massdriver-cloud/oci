@@ -198,7 +198,7 @@ defmodule OCI.Plug do
                repo,
                upload_id,
                chunk,
-               "0-#{String.length(chunk) - 1}"
+               nil
              ) do
           {:ok, _, _} ->
             :ok
@@ -259,21 +259,40 @@ defmodule OCI.Plug do
     end
   end
 
+  # https://github.com/opencontainers/distribution-spec/pull/576
+  # PR to fix conformance test suite to properly test Content-Range requirement
+  # for PATCH requests as specified in the spec. The spec requires Content-Range
+  # for PATCH requests to ensure ordered chunk uploads, but the test suite
+  # incorrectly omits this requirement. The spec requires:
+  # - Content-Range header is required for PATCH requests
+  # - Must be inclusive on both ends (e.g. "0-1023")
+  # - First chunk must begin with 0
+  # - Must match regex ^[0-9]+-[0-9]+$
   defp upload_chunk(conn, repo, uuid) do
-    registry = conn.private[:oci_registry]
-    chunk = conn.assigns[:raw_body]
-    # TODO: DONT CALCULATE CONTENT RANGE, SEND SIZE
-    content_range = calculate_content_range(conn)
+    content_range = conn |> get_req_header("content-range") |> List.first()
 
-    case Registry.upload_chunk(registry, repo, uuid, chunk, content_range) do
-      {:ok, location, range} ->
-        conn
-        |> put_resp_header("location", location)
-        |> put_resp_header("range", range)
-        |> send_resp(202, "")
+    case content_range do
+      nil ->
+        error_resp(
+          conn,
+          :BLOB_UPLOAD_INVALID,
+          "Content-Range header is required for PATCH requests"
+        )
 
-      {:error, oci_error_status} ->
-        error_resp(conn, oci_error_status)
+      _ ->
+        registry = conn.private[:oci_registry]
+        chunk = conn.assigns[:raw_body]
+
+        case Registry.upload_chunk(registry, repo, uuid, chunk, content_range) do
+          {:ok, location, range} ->
+            conn
+            |> put_resp_header("location", location)
+            |> put_resp_header("range", range)
+            |> send_resp(202, "")
+
+          {:error, oci_error_status} ->
+            error_resp(conn, oci_error_status)
+        end
     end
   end
 
@@ -281,8 +300,9 @@ defmodule OCI.Plug do
     registry = conn.private[:oci_registry]
 
     case Registry.get_upload_status(registry, repo, uuid) do
-      {:ok, range} ->
+      {:ok, location, range} ->
         conn
+        |> put_resp_header("location", location)
         |> put_resp_header("range", range)
         |> send_resp(204, "")
 
@@ -296,7 +316,7 @@ defmodule OCI.Plug do
        when not is_nil(digest) do
     registry = conn.private[:oci_registry]
 
-    # Must have a content-length, it maybe 0
+    # Must have a content-length, it may be 0 depending on if a final chunk is being uploaded or not with the digest.
     content_length =
       conn |> get_req_header("content-length") |> List.first() |> String.to_integer()
 
@@ -306,7 +326,7 @@ defmodule OCI.Plug do
              repo,
              uuid,
              conn.assigns[:raw_body],
-             content_length
+             nil
            ) do
         {:ok, _, _} ->
           :ok
@@ -328,7 +348,11 @@ defmodule OCI.Plug do
   end
 
   defp complete_blob_upload(conn, _repo, _uuid) do
-    error_resp(conn, :DIGEST_INVALID)
+    error_resp(
+      conn,
+      :DIGEST_INVALID,
+      "Digest query parameter is required for PUT requests"
+    )
   end
 
   defp cancel_blob_upload(conn, repo, uuid) do
@@ -459,31 +483,6 @@ defmodule OCI.Plug do
     last = params["last"]
 
     %Pagination{n: n, last: last}
-  end
-
-  defp calculate_content_range(conn) do
-    conn
-    |> get_req_header("content-range")
-    |> List.first()
-    |> case do
-      nil ->
-        get_req_header(conn, "content-length")
-        |> List.first()
-        |> case do
-          nil ->
-            nil
-
-          "0" ->
-            "0-0"
-
-          content_length ->
-            length = String.to_integer(content_length)
-            "0-#{length - 1}"
-        end
-
-      content_range ->
-        content_range
-    end
   end
 
   defp ensure_request_id(conn) do

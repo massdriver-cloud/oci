@@ -1,5 +1,6 @@
 require Logger
-# TODO: duplicate tests for the OrgTeamImage router
+
+# TODO: duplicate tests for the OrgTeamImage router unless we dont need to pass the repo: command per my theory
 
 # This file defines test-only Phoenix router modules used to verify how
 # `OCI.PhoenixRouter` integrates into real-world route structures.
@@ -115,10 +116,10 @@ defmodule Conformance do
       {"OCI_TEST_PUSH", "1"},
       {"OCI_TEST_CONTENT_DISCOVERY", "0"},
       {"OCI_TEST_CONTENT_MANAGEMENT", "0"},
+      {"OCI_AUTOMATIC_CROSSMOUNT", "0"},
+      {"OCI_DELETE_MANIFEST_BEFORE_BLOBS", "0"},
       {"OCI_HIDE_SKIPPED_WORKFLOWS", "0"},
       {"OCI_DEBUG", "0"},
-      {"OCI_DELETE_MANIFEST_BEFORE_BLOBS", "0"},
-      {"OCI_AUTOMATIC_CROSSMOUNT", "1"},
       {"OCI_REPORT_DIR", conformance_report_dir()}
     ]
 

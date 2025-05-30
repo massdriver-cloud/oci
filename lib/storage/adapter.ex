@@ -126,6 +126,9 @@ defmodule OCI.Storage.Adapter do
             ) ::
               {:ok, String.t()} | {:error, term()}
 
+  @callback get_upload_size(storage :: t(), repo :: String.t(), uuid :: String.t()) ::
+              {:ok, non_neg_integer()} | {:error, term()}
+
   @doc """
   Finalizes a blob upload and verifies the digest.
 
