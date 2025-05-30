@@ -152,7 +152,6 @@ defmodule OCI.Inspector do
           label: "🛠️🛠️🛠️ OCI Pry — Runtime State"
         )
 
-        require IEx
         IEx.pry()
     end
   end

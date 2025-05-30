@@ -61,6 +61,7 @@ defmodule OCI.Storage.Local do
     {:ok, uuid}
   end
 
+  @impl true
   def upload_chunk(%__MODULE__{} = storage, repo, uuid, chunk) do
     case upload_exists?(storage, repo, uuid) do
       :ok ->
@@ -68,10 +69,12 @@ defmodule OCI.Storage.Local do
         monotonic_time = System.monotonic_time(:millisecond)
 
         File.write!("#{upload_dir}/chunk.#{monotonic_time}", chunk)
+        # TOD: this is silly
         data = combine_chunks(upload_dir)
+        range = OCI.Registry.calculate_range(data)
 
         # return the total range of the upload
-        {:ok, "0-#{:erlang.byte_size(data) - 1}"}
+        {:ok, range}
 
       err ->
         err
@@ -84,7 +87,8 @@ defmodule OCI.Storage.Local do
       :ok ->
         upload_dir = upload_dir(storage, repo, uuid)
         data = combine_chunks(upload_dir)
-        {:ok, "0-#{:erlang.byte_size(data) - 1}"}
+        range = OCI.Registry.calculate_range(data)
+        {:ok, range}
 
       err ->
         err

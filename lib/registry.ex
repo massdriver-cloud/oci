@@ -60,6 +60,15 @@ defmodule OCI.Registry do
     - `{:error, reason}` if the upload fails
   """
   def upload_chunk(%{storage: storage}, repo, uuid, chunk) do
+    # TODO: return this if the chunk is out of order
+    :EXT_BLOB_UPLOAD_OUT_OF_ORDER
+
+    # with {:ok, _location, range} <- get_upload_status(storage, repo, uuid) do
+    #   if range == "0-0" do
+    #     {:error, :EXT_BLOB_UPLOAD_OUT_OF_ORDER}
+    #   end
+    # end
+
     case storage.__struct__.upload_chunk(storage, repo, uuid, chunk) do
       {:ok, range} ->
         {:ok, blobs_uploads_path(repo, uuid), range}
@@ -67,6 +76,22 @@ defmodule OCI.Registry do
       error ->
         error
     end
+  end
+
+  @doc """
+  Calculates the range of a chunk of data.
+
+  ## Examples
+    iex> OCI.Registry.calculate_range("hello")
+    "0-4"
+
+    iex> OCI.Registry.calculate_range("hello", 1)
+    "1-5"
+  """
+  @spec calculate_range(bitstring(), pos_integer() | nil) :: nonempty_binary()
+  def calculate_range(data, start_byte \\ 0) do
+    end_byte = start_byte + byte_size(data) - 1
+    "#{start_byte}-#{end_byte}"
   end
 
   @doc """

@@ -8,23 +8,6 @@ defmodule OCI.Plug do
   alias OCI.Registry
   alias OCI.Registry.Pagination
 
-  @error_codes %{
-    BLOB_UNKNOWN: "blob unknown to registry",
-    BLOB_UPLOAD_INVALID: "blob upload invalid",
-    BLOB_UPLOAD_UNKNOWN: "blob upload unknown to registry",
-    DIGEST_INVALID: "provided digest did not match uploaded content",
-    MANIFEST_BLOB_UNKNOWN: "manifest references a manifest or blob unknown to registry",
-    MANIFEST_INVALID: "manifest invalid",
-    MANIFEST_UNKNOWN: "manifest unknown to registry",
-    NAME_INVALID: "invalid repository name",
-    NAME_UNKNOWN: "repository name not known to registry",
-    SIZE_INVALID: "provided length did not match content length",
-    UNAUTHORIZED: "authentication required",
-    DENIED: "requested access to the resource is denied",
-    UNSUPPORTED: "the operation is unsupported",
-    TOOMANYREQUESTS: "too many requests"
-  }
-
   @impl true
   def init(opts) do
     registry = Keyword.get(opts, :registry)
@@ -296,8 +279,6 @@ defmodule OCI.Plug do
 
     case Registry.get_upload_status(registry, repo, uuid) do
       {:ok, location, range} ->
-        OCI.Inspector.pry(binding())
-
         conn
         |> put_resp_header("range", range)
         |> put_resp_header("location", location)
@@ -464,69 +445,12 @@ defmodule OCI.Plug do
   end
 
   defp error_resp(conn, code, details \\ nil) do
-    body =
-      %{
-        errors: [
-          %{
-            code: code,
-            message: @error_codes[code],
-            detail: details
-          }
-        ]
-      }
-      |> Jason.encode!()
-
-    status =
-      case code do
-        :BLOB_UNKNOWN ->
-          404
-
-        :BLOB_UPLOAD_INVALID ->
-          400
-
-        :BLOB_UPLOAD_UNKNOWN ->
-          404
-
-        :DIGEST_INVALID ->
-          400
-
-        :MANIFEST_BLOB_UNKNOWN ->
-          400
-
-        :MANIFEST_INVALID ->
-          400
-
-        :MANIFEST_UNKNOWN ->
-          404
-
-        :NAME_INVALID ->
-          400
-
-        :NAME_UNKNOWN ->
-          404
-
-        :SIZE_INVALID ->
-          400
-
-        :UNAUTHORIZED ->
-          401
-
-        :DENIED ->
-          403
-
-        :UNSUPPORTED ->
-          405
-
-        :TOOMANYREQUESTS ->
-          429
-
-        _ ->
-          500
-      end
+    error = OCI.Error.init(code, details)
+    body = %{errors: [error]} |> Jason.encode!()
 
     conn
     |> put_resp_content_type("application/json")
-    |> send_resp(status, body)
+    |> send_resp(error.http_status, body)
     |> halt()
   end
 
