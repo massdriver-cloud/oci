@@ -268,7 +268,7 @@ defmodule OCI.Registry do
   @doc """
   Calculates the range of a chunk of data.
   ## Examples
-    iex> OCI.Registry.calculate_range("hello")
+    iex> OCI.Registry.calculate_range("hello", 0)
     "0-4"
     iex> OCI.Registry.calculate_range("hello", 1)
     "1-5"
