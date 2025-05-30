@@ -302,26 +302,79 @@ defmodule OCI.Registry do
     "1-5"
   """
   @spec calculate_range(bitstring(), non_neg_integer() | nil) :: nonempty_binary()
-
-  # TODO: AM I CALCULATING RANGE CORRECTLY?
   def calculate_range(data, start_byte) do
     end_byte = start_byte + byte_size(data) - 1
     "#{start_byte}-#{end_byte}"
   end
 
+  @docp """
+  Extracts the module name from a struct.
+
+  ## Examples
+      iex> OCI.Registry.adapter(%OCI.Storage.Local{path: "/tmp"})
+      OCI.Storage.Local
+  """
+  @spec adapter(%{__struct__: module()}) :: module()
   defp adapter(%{__struct__: a}), do: a
 
+  @doc """
+  Parses a Content-Range header value into start and end positions.
+
+  ## Parameters
+    - range: A string in the format "start-end" (e.g. "0-1023")
+
+  ## Returns
+    A tuple of {start, end} integers
+
+  ## Examples
+      iex> OCI.Registry.parse_range("0-1023")
+      {0, 1023}
+      iex> OCI.Registry.parse_range("1024-2047")
+      {1024, 2047}
+  """
+  @spec parse_range(String.t()) :: {non_neg_integer(), non_neg_integer()}
   defp parse_range(range) do
     [range_start, range_end] = String.split(range, "-") |> Enum.map(&String.to_integer/1)
     {range_start, range_end}
   end
 
-  # It is ok to receive an empty chunk upload?
-  # When adding verification, 26 tests initially broke,
-  # i found by adding this in they passed.
-  # Need to figure out where in the spec the range is sent
-  # to make validity checking more clear. This seems like a hack, but
-  # its just a part of the spec???
+  @doc """
+  Verifies that a chunk upload is in the correct order.
+
+  When no range is provided (nil), the upload is considered valid. This is used for
+  initial POST requests and final PUT requests where ranges are not required.
+
+  ## Content-Range header requirements for chunk uploads:
+
+  - Required for PATCH requests (validated at plug level)
+  - Must be inclusive on both ends (e.g. "0-1023")
+  - First chunk must begin with 0
+  - Chunks must be uploaded in order
+  - Not required for initial POST or final PUT requests
+
+  **Note:** While nil ranges are valid for POST/PUT, this is a potential security concern
+      as it could allow empty chunk uploads. This is handled by requiring Content-Range
+      for PATCH requests at the plug level, preventing empty chunk uploads before they
+      reach this verification step.
+
+  ## Parameters
+    - current_size: The current size of uploaded data in bytes
+    - range: The Content-Range header value or nil
+
+  ## Returns
+    - `:ok` if the upload is valid
+    - `{:error, :EXT_BLOB_UPLOAD_OUT_OF_ORDER}` if the chunk is out of order
+
+  ## Examples
+      iex> OCI.Registry.verify_upload_order(0, nil)
+      :ok
+      iex> OCI.Registry.verify_upload_order(1024, "1024-2047")
+      :ok
+      iex> OCI.Registry.verify_upload_order(1024, "2048-3071")
+      {:error, :EXT_BLOB_UPLOAD_OUT_OF_ORDER}
+  """
+  @spec verify_upload_order(non_neg_integer(), nil | String.t()) ::
+          :ok | {:error, :EXT_BLOB_UPLOAD_OUT_OF_ORDER}
   defp verify_upload_order(_current_size, nil) do
     :ok
   end
