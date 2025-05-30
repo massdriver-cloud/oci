@@ -92,7 +92,6 @@ defmodule OCI.Storage.Adapter do
     - repo: The repository name
     - uuid: The upload session ID
     - chunk: The binary data chunk to upload
-    - content_range: The range of bytes being uploaded (e.g. "0-1023")
 
   ## Returns
     - `{:ok, range}` indicating the current range of uploaded bytes
@@ -102,8 +101,7 @@ defmodule OCI.Storage.Adapter do
               storage :: t(),
               repo :: String.t(),
               uuid :: String.t(),
-              chunk :: binary(),
-              content_range :: String.t()
+              chunk :: binary()
             ) ::
               {:ok, String.t()} | {:error, term()}
 

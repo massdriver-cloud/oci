@@ -142,6 +142,14 @@ defmodule Conformance do
     end)
   end
 
+  def reports() do
+    conformance_json_report_path()
+    |> File.read!()
+    |> Jason.decode!()
+    |> List.first()
+    |> Map.get("SpecReports")
+  end
+
   def conformance_dir() do
     ".tmp/oci-conformance"
   end
@@ -173,7 +181,8 @@ Conformance.clone_repo!("https://github.com/opencontainers/distribution-spec.git
 Conformance.build!()
 Conformance.report!()
 
-# TODO: remove this and the sorting above, doing this to make it easier to work through
-# rework plug tests to focus on registry features / config
+# The tests are actually run outside of exunit, but the results are evaluated and printed.
+# Order is forced to make it easier to work through what is off from the conformance spec
+# Since those conformance tests _are_ run in order and depend on each other to build up state.
 ExUnit.configure(seed: 0)
 ExUnit.start()
