@@ -192,14 +192,13 @@ defmodule OCI.Plug do
       {:ok, location} ->
         upload_id = location |> String.split("/") |> List.last()
         chunk = conn.assigns[:raw_body]
-        content_range = conn |> get_req_header("content-range") |> List.first()
 
         case Registry.upload_chunk(
                registry,
                repo,
                upload_id,
                chunk,
-               content_range
+               nil
              ) do
           {:ok, _, _} ->
             :ok
@@ -260,20 +259,40 @@ defmodule OCI.Plug do
     end
   end
 
+  # https://github.com/opencontainers/distribution-spec/pull/576
+  # PR to fix conformance test suite to properly test Content-Range requirement
+  # for PATCH requests as specified in the spec. The spec requires Content-Range
+  # for PATCH requests to ensure ordered chunk uploads, but the test suite
+  # incorrectly omits this requirement. The spec requires:
+  # - Content-Range header is required for PATCH requests
+  # - Must be inclusive on both ends (e.g. "0-1023")
+  # - First chunk must begin with 0
+  # - Must match regex ^[0-9]+-[0-9]+$
   defp upload_chunk(conn, repo, uuid) do
-    registry = conn.private[:oci_registry]
-    chunk = conn.assigns[:raw_body]
     content_range = conn |> get_req_header("content-range") |> List.first()
 
-    case Registry.upload_chunk(registry, repo, uuid, chunk, content_range) do
-      {:ok, location, range} ->
-        conn
-        |> put_resp_header("location", location)
-        |> put_resp_header("range", range)
-        |> send_resp(202, "")
+    case content_range do
+      nil ->
+        error_resp(
+          conn,
+          :BLOB_UPLOAD_INVALID,
+          "Content-Range header is required for PATCH requests"
+        )
 
-      {:error, oci_error_status} ->
-        error_resp(conn, oci_error_status)
+      _ ->
+        registry = conn.private[:oci_registry]
+        chunk = conn.assigns[:raw_body]
+
+        case Registry.upload_chunk(registry, repo, uuid, chunk, content_range) do
+          {:ok, location, range} ->
+            conn
+            |> put_resp_header("location", location)
+            |> put_resp_header("range", range)
+            |> send_resp(202, "")
+
+          {:error, oci_error_status} ->
+            error_resp(conn, oci_error_status)
+        end
     end
   end
 
@@ -302,14 +321,12 @@ defmodule OCI.Plug do
       conn |> get_req_header("content-length") |> List.first() |> String.to_integer()
 
     if content_length > 0 do
-      content_range = conn |> get_req_header("content-range") |> List.first()
-
       case Registry.upload_chunk(
              registry,
              repo,
              uuid,
              conn.assigns[:raw_body],
-             content_range
+             nil
            ) do
         {:ok, _, _} ->
           :ok
@@ -331,7 +348,11 @@ defmodule OCI.Plug do
   end
 
   defp complete_blob_upload(conn, _repo, _uuid) do
-    error_resp(conn, :DIGEST_INVALID)
+    error_resp(
+      conn,
+      :DIGEST_INVALID,
+      "Digest query parameter is required for PUT requests"
+    )
   end
 
   defp cancel_blob_upload(conn, repo, uuid) do

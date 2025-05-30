@@ -1,5 +1,6 @@
 require Logger
-# TODO: duplicate tests for the OrgTeamImage router
+
+# TODO: duplicate tests for the OrgTeamImage router unless we dont need to pass the repo: command per my theory
 
 # This file defines test-only Phoenix router modules used to verify how
 # `OCI.PhoenixRouter` integrates into real-world route structures.

@@ -49,17 +49,23 @@ defmodule OCI.Registry do
   @doc """
   Uploads a chunk of data to an existing blob upload.
 
-  **Note:** you cannot depend on a chunk range, its not sent on all chunk uploads.
-  You can't fake one either, because a previous chunk may have been uploaded out of order.
-  You could read the whole blob in and calculate the range, but that's a read with no purpose
-  because it will always pass verification.
+  **Note:** The Content-Range header is not always present in chunk uploads:
+  - For PATCH requests, Content-Range is required (validated at plug level)
+  - For POST (initial) and PUT (final) requests, Content-Range is optional
+  - For monolithic uploads, Content-Range may be omitted entirely
+
+  The `maybe_chunk_range` parameter reflects this variability in the protocol.
+  We cannot assume or calculate the range ourselves because:
+  1. Previous chunks may have been uploaded out of order
+  2. The client may be using a different upload strategy
+  3. The range is only meaningful when provided by the client
 
   ## Parameters
     - registry: The registry instance
     - repo: The repository name
     - uuid: The upload session ID
     - chunk: The binary data chunk to upload
-    - chunk_range: The length of the chunk
+    - maybe_chunk_range: Optional Content-Range header value
 
   ## Returns
     - `{:ok, location, range}` where location is the URL for the next chunk upload and range is the current range of uploaded bytes
@@ -68,36 +74,26 @@ defmodule OCI.Registry do
   def upload_chunk(%{storage: storage}, repo, uuid, chunk, maybe_chunk_range) do
     reg = adapter(storage)
 
+    with :ok <- reg.upload_exists?(storage, repo, uuid),
+         {:ok, size} <- reg.get_upload_size(storage, repo, uuid),
+         :ok <- verify_upload_order(size, maybe_chunk_range),
+         {:ok, range} <- reg.upload_chunk(storage, repo, uuid, chunk, maybe_chunk_range) do
+      {:ok, blobs_uploads_path(repo, uuid), range}
+    end
+  end
+
+  def upload_chunk_X(%{storage: storage}, repo, uuid, chunk, maybe_chunk_range) do
+    reg = adapter(storage)
+
     case reg.upload_exists?(storage, repo, uuid) do
       :ok ->
-        IO.inspect(maybe_chunk_range, label: "=========== CHUNK RANGE ===========")
+        # TODO: verify the fucking size and make these tests pass!
         {:ok, size} = reg.get_upload_size(storage, repo, uuid)
-        IO.inspect(size, label: "=========== SIZE ===========")
 
-        result = storage.__struct__.upload_chunk(storage, repo, uuid, chunk, maybe_chunk_range)
-        IO.inspect(result, label: "=========== RESULT (IF ORDER WAS OK...) ===========")
-
-        # I'm adding verify to respond with 416 errors when out of order, but something about
-        # verify is breaking everything else.
-        #
-        # Something about this breaks 26 calls, but worse is that the output is lost in phx500.
-        # => the nil value, my hypothesis, so what happens when we nil check with and without
-        #    the line below?
-        #
-        #    # nil check, verify
-        #    #  [   ]        [   ] = 4 broke tests
-        #    #  [   ]        [ x ] = 30 broke tests (EXT_ val errors present!)
-        #    #  [ x ]        [   ] = 30 broke tests
-        #    #  [ x ]        [ x ] = 30 broke tests (EXT_ val errors present!)
-        #
-        # [-] Disable nil check, and work through verify:
-        #   [ ] Effect on conf test failures?
-        # [ ] How does calculate range also break in nil checking?
-        #
         order_ok = verify_upload_order(size, maybe_chunk_range)
         IO.inspect(order_ok, label: "=========== ORDER OK ===========")
 
-        case result do
+        case reg.upload_chunk(storage, repo, uuid, chunk, maybe_chunk_range) do
           {:ok, range} ->
             {:ok, blobs_uploads_path(repo, uuid), range}
 
