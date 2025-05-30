@@ -192,13 +192,14 @@ defmodule OCI.Plug do
       {:ok, location} ->
         upload_id = location |> String.split("/") |> List.last()
         chunk = conn.assigns[:raw_body]
+        content_range = conn |> get_req_header("content-range") |> List.first()
 
         case Registry.upload_chunk(
                registry,
                repo,
                upload_id,
                chunk,
-               "0-#{String.length(chunk) - 1}"
+               content_range
              ) do
           {:ok, _, _} ->
             :ok
@@ -262,8 +263,7 @@ defmodule OCI.Plug do
   defp upload_chunk(conn, repo, uuid) do
     registry = conn.private[:oci_registry]
     chunk = conn.assigns[:raw_body]
-    # TODO: DONT CALCULATE CONTENT RANGE, SEND SIZE
-    content_range = calculate_content_range(conn)
+    content_range = conn |> get_req_header("content-range") |> List.first()
 
     case Registry.upload_chunk(registry, repo, uuid, chunk, content_range) do
       {:ok, location, range} ->
@@ -281,8 +281,9 @@ defmodule OCI.Plug do
     registry = conn.private[:oci_registry]
 
     case Registry.get_upload_status(registry, repo, uuid) do
-      {:ok, range} ->
+      {:ok, location, range} ->
         conn
+        |> put_resp_header("location", location)
         |> put_resp_header("range", range)
         |> send_resp(204, "")
 
@@ -296,17 +297,19 @@ defmodule OCI.Plug do
        when not is_nil(digest) do
     registry = conn.private[:oci_registry]
 
-    # Must have a content-length, it maybe 0
+    # Must have a content-length, it may be 0 depending on if a final chunk is being uploaded or not with the digest.
     content_length =
       conn |> get_req_header("content-length") |> List.first() |> String.to_integer()
 
     if content_length > 0 do
+      content_range = conn |> get_req_header("content-range") |> List.first()
+
       case Registry.upload_chunk(
              registry,
              repo,
              uuid,
              conn.assigns[:raw_body],
-             content_length
+             content_range
            ) do
         {:ok, _, _} ->
           :ok
@@ -459,31 +462,6 @@ defmodule OCI.Plug do
     last = params["last"]
 
     %Pagination{n: n, last: last}
-  end
-
-  defp calculate_content_range(conn) do
-    conn
-    |> get_req_header("content-range")
-    |> List.first()
-    |> case do
-      nil ->
-        get_req_header(conn, "content-length")
-        |> List.first()
-        |> case do
-          nil ->
-            nil
-
-          "0" ->
-            "0-0"
-
-          content_length ->
-            length = String.to_integer(content_length)
-            "0-#{length - 1}"
-        end
-
-      content_range ->
-        content_range
-    end
   end
 
   defp ensure_request_id(conn) do

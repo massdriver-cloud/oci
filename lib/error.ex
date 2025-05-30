@@ -66,7 +66,8 @@ defmodule OCI.Error do
     },
     EXT_BLOB_UPLOAD_OUT_OF_ORDER: %{
       message: "blob upload out of order",
-      status: 416
+      status: 416,
+      external: :BLOB_UPLOAD_INVALID
     }
   }
 
@@ -76,11 +77,16 @@ defmodule OCI.Error do
     field :message, String.t()
     field :detail, any()
     field :http_status, integer()
+    field :external, atom()
   end
 
+  # Maps internal error codes to OCI Compliant error codes
   def init(code, details) do
+    error = @errors[code]
+    external_code = error[:external] || code
+
     %__MODULE__{
-      code: code,
+      code: external_code,
       message: @errors[code][:message],
       detail: details,
       http_status: @errors[code][:status] || 500

@@ -54,19 +54,64 @@ defmodule OCI.Registry do
     - repo: The repository name
     - uuid: The upload session ID
     - chunk: The binary data chunk to upload
-    - content_length: The length of the chunk
+    - chunk_range: The length of the chunk
 
   ## Returns
     - `{:ok, location, range}` where location is the URL for the next chunk upload and range is the current range of uploaded bytes
     - `{:error, reason}` if the upload fails
   """
-  def upload_chunk(%{storage: storage}, repo, uuid, chunk, content_length) do
-    case storage.__struct__.upload_chunk(storage, repo, uuid, chunk, content_length) do
-      {:ok, range} ->
-        {:ok, blobs_uploads_path(repo, uuid), range}
 
-      error ->
-        error
+  # Ok, so we can't guarantee content-range, so we'll have to make it up to prevent overlap test.
+  # Adding this in breaks everything, removing it breaks 5 things (only three if we never send content range in the first place)
+  # def upload_chunk(%{storage: storage}, repo, uuid, chunk, nil) do
+  #   content_range = "0-#{byte_size(chunk) - 1}"
+  #   upload_chunk(storage, repo, uuid, chunk, content_range)
+  # end
+
+  def upload_chunk(%{storage: storage}, repo, uuid, chunk, nil) do
+    chunk_range = calculate_range(chunk)
+    upload_chunk(storage, repo, uuid, chunk, chunk_range)
+  end
+
+  def upload_chunk(%{storage: storage}, repo, uuid, chunk, chunk_range) do
+    reg = adapter(storage)
+
+    case reg.upload_exists?(storage, repo, uuid) do
+      :ok ->
+        IO.inspect(chunk_range, label: "=========== CHUNK RANGE ===========")
+        {:ok, size} = reg.get_upload_size(storage, repo, uuid)
+        IO.inspect(size, label: "=========== SIZE ===========")
+
+        result = storage.__struct__.upload_chunk(storage, repo, uuid, chunk, chunk_range)
+        IO.inspect(result, label: "=========== RESULT (IF ORDER WAS OK...) ===========")
+
+        # Something about this breaks 26 calls, but worse is that the output is lost in phx500.
+        # => the nil value, my hypothesis, so what happens when we nil check with and without
+        #    the line below?
+        #
+        #    # nil check, verify
+        #    #  [   ]        [   ] = 4 broke tests
+        #    #  [   ]        [ x ] = 30 broke tests (EXT_ val errors present!)
+        #    #  [ x ]        [   ] = 30 broke tests
+        #    #  [ x ]        [ x ] = 30 broke tests (EXT_ val errors present!)
+        #
+        # [-] Disable nil check, and work through verify:
+        #   [ ] Effect on conf test failures?
+        # [ ] How does calculate range also break in nil checking?
+        #
+        order_ok = verify_upload_order(size, chunk_range)
+        IO.inspect(order_ok, label: "=========== ORDER OK ===========")
+
+        case result do
+          {:ok, range} ->
+            {:ok, blobs_uploads_path(repo, uuid), range}
+
+          error ->
+            error
+        end
+
+      err ->
+        err
     end
   end
 
@@ -83,7 +128,10 @@ defmodule OCI.Registry do
     - `{:error, :BLOB_UPLOAD_UNKNOWN}` if the upload doesn't exist
   """
   def get_upload_status(%{storage: storage}, repo, uuid) do
-    storage.__struct__.get_upload_status(storage, repo, uuid)
+    case storage.__struct__.get_upload_status(storage, repo, uuid) do
+      {:ok, range} -> {:ok, blobs_uploads_path(repo, uuid), range}
+      error -> error
+    end
   end
 
   def complete_blob_upload(_registry, _repo, _uuid, nil), do: {:error, :DIGEST_INVALID}
@@ -151,21 +199,42 @@ defmodule OCI.Registry do
     storage.__struct__.list_tags(storage, repo, pagination)
   end
 
+  @doc """
+  Calculates the SHA-256 hash of the given data and returns it as a lowercase hexadecimal string.
+  ## Parameters
+    - data: The binary data to hash
+  ## Returns
+    A lowercase hexadecimal string representing the SHA-256 hash.
+  ## Examples
+      iex> OCI.Registry.sha256("hello")
+      "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+  """
+  @spec sha256(binary()) :: String.t()
   def sha256(data) do
     :crypto.hash(:sha256, data) |> Base.encode16(case: :lower)
   end
 
+  @doc """
+  Verifies that the given data matches the provided digest.
+  ## Parameters
+    - data: The binary data to verify
+    - digest: The digest to verify against (must start with "sha256:")
+  ## Returns
+    - `:ok` if the data matches the digest
+    - `{:error, :DIGEST_INVALID}` if the digest is invalid or doesn't match
+  ## Examples
+      iex> OCI.Registry.verify_digest("hello", "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824")
+      :ok
+      iex> OCI.Registry.verify_digest("hello", "sha256:wronghash")
+      {:error, :DIGEST_INVALID}
+      iex> OCI.Registry.verify_digest("hello", "invalid-digest")
+      {:error, :DIGEST_INVALID}
+  """
+  @spec verify_digest(binary(), String.t()) :: :ok | {:error, :DIGEST_INVALID}
   def verify_digest(data, digest) do
     case digest do
       "sha256:" <> hash ->
         computed = sha256(data)
-
-        # TODO: digest is off, chunks aren't put together correcty?
-        # This is why .tmp/oci-conformance/distribution-spec/conformance/02_push_test.go:244 is failing
-        # It's hard to tell though because so many HTTP requests are made
-        # Thus the Inspector.pry() if it can get from the process dictionary
-        # is super helpful.
-        OCI.Inspector.pry(binding())
 
         if computed == hash, do: :ok, else: {:error, :DIGEST_INVALID}
 
@@ -197,11 +266,35 @@ defmodule OCI.Registry do
     end
   end
 
-  defp blobs_digest_path(repo, digest) do
+  @doc """
+  Generates the path for a blob with the given digest in a repository.
+  ## Parameters
+    - repo: The repository name
+    - digest: The digest of the blob (e.g. "sha256:abc123...")
+  ## Returns
+    A string representing the full path to the blob.
+  ## Examples
+      iex> OCI.Registry.blobs_digest_path("myrepo", "sha256:abc123")
+      "/v2/myrepo/blobs/sha256:abc123"
+  """
+  @spec blobs_digest_path(String.t(), String.t()) :: String.t()
+  def blobs_digest_path(repo, digest) do
     "/v2/#{repo}/blobs/#{digest}"
   end
 
-  defp blobs_uploads_path(repo, uuid) do
+  @doc """
+  Generates the path for an ongoing blob upload session.
+  ## Parameters
+    - repo: The repository name
+    - uuid: The unique identifier for the upload session
+  ## Returns
+    A string representing the full path to the upload session.
+  ## Examples
+      iex> OCI.Registry.blobs_uploads_path("myrepo", "123e4567-e89b-12d3-a456-426614174000")
+      "/v2/myrepo/blobs/uploads/123e4567-e89b-12d3-a456-426614174000"
+  """
+  @spec blobs_uploads_path(String.t(), String.t()) :: String.t()
+  def blobs_uploads_path(repo, uuid) do
     "/v2/#{repo}/blobs/uploads/#{uuid}"
   end
 
@@ -214,8 +307,38 @@ defmodule OCI.Registry do
     "1-5"
   """
   @spec calculate_range(bitstring(), non_neg_integer() | nil) :: nonempty_binary()
+
   def calculate_range(data, start_byte \\ 0) do
     end_byte = start_byte + byte_size(data) - 1
     "#{start_byte}-#{end_byte}"
+  end
+
+  defp adapter(%{__struct__: a}), do: a
+
+  defp parse_range(range) do
+    [range_start, range_end] = String.split(range, "-") |> Enum.map(&String.to_integer/1)
+    {range_start, range_end}
+  end
+
+  # TODO: it looks like an empty blob {"0", nil} is being uploaded
+  # What happens if we turn nil checking on, this will be set (to something weird)
+  # What do we do in this scenario, is this an error that the conftest can handle?
+  #
+  # if we turn nil checking ON this get skipped and
+  defp verify_upload_order(current_size, nil) do
+    require IEx
+    IEx.pry()
+  end
+
+  defp verify_upload_order(current_size, range) do
+    OCI.Inspector.pry(binding())
+
+    {range_start, range_end} = parse_range(range)
+
+    if range_start == current_size do
+      :ok
+    else
+      {:error, :EXT_BLOB_UPLOAD_OUT_OF_ORDER}
+    end
   end
 end
