@@ -32,7 +32,10 @@ defmodule TestRegistryWeb.Endpoint do
   plug(TestRegistryWeb.Router)
 end
 
-# # TODO: duplicate tests for the OrgTeamImage router unless we dont need to pass the repo: command per my theory
+# TODO:
+# Either add tests for other route formats or see if we can get scope "/v2" to just forward to the plug
+# without the macro. Seems very extra to me.
+#
 # defmodule OrgTeamImageRouter do
 #   @moduledoc """
 #   Test router simulating a registry with `:org/:team/:image` repo structure.
