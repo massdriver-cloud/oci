@@ -2,6 +2,10 @@ defmodule OCI.ConformanceTest do
   # @moduledoc false
   use ExUnit.Case, async: false
 
+  test "has run conformance specs" do
+    assert length(Conformance.reports()) > 0
+  end
+
   Conformance.failures()
   |> Enum.each(fn conftest ->
     %{
@@ -30,8 +34,4 @@ defmodule OCI.ConformanceTest do
 
     Module.eval_quoted(__MODULE__, quote)
   end)
-
-  test "no conformance failures" do
-    assert length(Conformance.failures()) == 0
-  end
 end

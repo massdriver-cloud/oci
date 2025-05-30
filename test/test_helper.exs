@@ -1,3 +1,4 @@
+require Logger
 # TODO: duplicate tests for the OrgTeamImage router
 
 # This file defines test-only Phoenix router modules used to verify how
@@ -56,12 +57,13 @@ defmodule OrgTeamImage.Endpoint do
 end
 
 defmodule Conformance do
-  def clone_repo!(repo) do
+  def clone_repo(repo, opts \\ []) do
     path = conformance_dir()
+    force = Keyword.get(opts, :force, false)
 
-    if File.exists?(path) do
-      :ok
-    else
+    if force || !File.exists?(path) do
+      Logger.info("🔄 Cloning distribution-spec repo to #{path}")
+
       {output, status} =
         System.cmd("git", [
           "clone",
@@ -73,17 +75,20 @@ defmodule Conformance do
 
       case status do
         0 -> :ok
-        _ -> raise "Failed to clone distribution-spec: #{output}"
+        err -> {:error, inspect(err)}
       end
+    else
+      :ok
     end
   end
 
-  def build!() do
+  def build(opts \\ []) do
+    force = Keyword.get(opts, :force, false)
     path = conformance_bin_path()
 
-    if File.exists?(path) do
-      :ok
-    else
+    if force or !File.exists?(path) do
+      Logger.info("🚢 Building conformance test binary to #{path}")
+
       dir = Path.dirname(path)
       {output, status} = System.cmd("go", ["test", "-c"], cd: dir, stderr_to_stdout: true)
 
@@ -91,13 +96,15 @@ defmodule Conformance do
         0 ->
           :ok
 
-        _ ->
-          raise "Failed to build conformance test: #{output}"
+        err ->
+          {:error, inspect(err)}
       end
+    else
+      :ok
     end
   end
 
-  def report!() do
+  def generate_report() do
     env = [
       {"OCI_ROOT_URL", "http://localhost:4002"},
       {"OCI_NAMESPACE", "myorg/myrepo"},
@@ -114,6 +121,8 @@ defmodule Conformance do
       {"OCI_AUTOMATIC_CROSSMOUNT", "1"},
       {"OCI_REPORT_DIR", conformance_report_dir()}
     ]
+
+    Logger.info("🧪 Generating conformance report to #{conformance_json_report_path()}")
 
     {output, status} =
       System.cmd(
@@ -142,6 +151,14 @@ defmodule Conformance do
     end)
   end
 
+  def reports() do
+    conformance_json_report_path()
+    |> File.read!()
+    |> Jason.decode!()
+    |> List.first()
+    |> Map.get("SpecReports")
+  end
+
   def conformance_dir() do
     ".tmp/oci-conformance"
   end
@@ -167,13 +184,15 @@ Application.put_env(:oci, NamespaceName.Endpoint,
 {:ok, _} = Application.ensure_all_started(:oci)
 {:ok, _pid} = NamespaceName.Endpoint.start_link()
 
-IO.puts("✅ Phoenix endpoint started for conformance tests")
+Logger.info("🤞 Phoenix endpoint started for conformance tests")
 
-Conformance.clone_repo!("https://github.com/opencontainers/distribution-spec.git")
-Conformance.build!()
-Conformance.report!()
+:ok = Conformance.clone_repo("https://github.com/opencontainers/distribution-spec.git")
+:ok = Conformance.build(force: true)
 
-# TODO: remove this and the sorting above, doing this to make it easier to work through
-# rework plug tests to focus on registry features / config
+Conformance.generate_report()
+
+# The tests are actually run outside of exunit, but the results are evaluated and printed.
+# Order is forced to make it easier to work through what is off from the conformance spec
+# Since those conformance tests _are_ run in order and depend on each other to build up state.
 ExUnit.configure(seed: 0)
 ExUnit.start()
