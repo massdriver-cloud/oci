@@ -296,10 +296,13 @@ defmodule OCI.Plug do
   defp get_upload_status(conn, repo, uuid) do
     registry = conn.private[:oci_registry]
 
+    OCI.Inspector.pry(binding())
+
     case Registry.get_upload_status(registry, repo, uuid) do
-      {:ok, range} ->
+      {:ok, location, range} ->
         conn
         |> put_resp_header("range", range)
+        |> put_resp_header("location", location)
         |> send_resp(204, "")
 
       {:error, oci_error_status} ->

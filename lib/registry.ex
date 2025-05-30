@@ -79,11 +79,17 @@ defmodule OCI.Registry do
     - uuid: The upload session ID
 
   ## Returns
-    - `{:ok, range}` where range is the current range of uploaded bytes
+    - `{:ok, location, range}` where location is the URL for the next chunk upload and range is the current range of uploaded bytes
     - `{:error, :BLOB_UPLOAD_UNKNOWN}` if the upload doesn't exist
   """
   def get_upload_status(%{storage: storage}, repo, uuid) do
-    storage.__struct__.get_upload_status(storage, repo, uuid)
+    case storage.__struct__.get_upload_status(storage, repo, uuid) do
+      {:ok, range} ->
+        {:ok, blobs_uploads_path(repo, uuid), range}
+
+      {:error, :BLOB_UPLOAD_UNKNOWN} ->
+        {:error, :BLOB_UPLOAD_UNKNOWN}
+    end
   end
 
   def complete_blob_upload(_registry, _repo, _uuid, nil), do: {:error, :DIGEST_INVALID}
@@ -159,13 +165,6 @@ defmodule OCI.Registry do
     case digest do
       "sha256:" <> hash ->
         computed = sha256(data)
-
-        # TODO: digest is off, chunks aren't put together correcty?
-        # This is why .tmp/oci-conformance/distribution-spec/conformance/02_push_test.go:244 is failing
-        # It's hard to tell though because so many HTTP requests are made
-        # Thus the Inspector.pry() if it can get from the process dictionary
-        # is super helpful.
-        # OCI.Inspector.pry(binding())
 
         if computed == hash, do: :ok, else: {:error, :DIGEST_INVALID}
 

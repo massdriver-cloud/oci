@@ -114,11 +114,7 @@ defmodule OCI.Storage.Local do
         upload_dir = upload_dir(storage, repo, uuid)
         digest_path = digest_path(storage, repo, digest)
 
-        OCI.Inspector.pry(binding())
-
         data = combine_chunks(upload_dir)
-
-        IO.inspect(digest_path, label: "COMPLETED DIGEST PATH")
 
         with :ok <- OCI.Registry.verify_digest(data, digest),
              :ok <- File.write!(digest_path, data) do

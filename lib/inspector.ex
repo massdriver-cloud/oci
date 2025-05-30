@@ -91,16 +91,7 @@ defmodule OCI.Inspector do
       request_id = conn.private[:plug_request_id]
       Process.put(:oci_inspector, %OCI.Inspector{request_id: request_id, test: test})
 
-      IO.inspect(
-        %{
-          pid: self() |> Kernel.inspect(),
-          request_id: conn.private[:plug_request_id],
-          process_dict: Process.get()
-        },
-        label: "🔍 OCI Inspector — Runtime State"
-      )
-
-      label = "[oci-conformance-test:#{label}] (#{test}):"
+      label = "🔍🔍🔍 [oci-conformance-test:#{label}] (#{test}):"
 
       digest = conn.query_params["digest"]
 
@@ -110,6 +101,15 @@ defmodule OCI.Inspector do
       IO.inspect(
         "[#{conn.method}] #{conn.request_path} digest:#{digest} content-length=#{content_length} content-range=#{content_range}",
         label: label
+      )
+
+      IO.inspect(
+        %{
+          pid: self() |> Kernel.inspect(),
+          request_id: conn.private[:plug_request_id],
+          process_dict: Process.get()
+        },
+        label: "🔍🔍🔍 OCI Inspector — Runtime State"
       )
     end
 
@@ -149,7 +149,7 @@ defmodule OCI.Inspector do
             request_id: request_id,
             process_dict: Process.get()
           },
-          label: "🛠️ OCI Pry — Runtime State"
+          label: "🛠️🛠️🛠️ OCI Pry — Runtime State"
         )
 
         require IEx
