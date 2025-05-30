@@ -11,10 +11,10 @@ defmodule OCI.ConformanceTest do
   end
 
   test "has run conformance specs" do
-    assert length(Conformance.reports()) > 0
+    assert length(ConformanceSuite.reports()) > 0
   end
 
-  Conformance.failures()
+  ConformanceSuite.failures()
   |> Enum.each(fn conftest ->
     %{
       "ContainerHierarchyTexts" => container_hierarchy,
