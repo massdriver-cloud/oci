@@ -53,7 +53,7 @@ defmodule OCI.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
-      {:jason, "~> 1.4", optional: true},
+      {:jason, "~> 1.4", override: true},
       {:mix_test_watch, "~> 1.1", only: [:dev, :test], runtime: false},
       {:phoenix, ">= 1.5.0 and < 2.0.0", optional: true},
       {:plug, ">= 1.10.0 and < 2.0.0"},

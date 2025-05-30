@@ -261,8 +261,9 @@ defmodule OCI.Plug do
   defp upload_chunk(conn, repo, uuid) do
     registry = conn.private[:oci_registry]
     chunk = conn.assigns[:raw_body]
+    range = conn |> get_req_header("content-range") |> List.first()
 
-    case Registry.upload_chunk(registry, repo, uuid, chunk) do
+    case Registry.upload_chunk(registry, repo, uuid, chunk, range) do
       {:ok, location, range} ->
         conn
         |> put_resp_header("location", location)

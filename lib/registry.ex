@@ -59,39 +59,17 @@ defmodule OCI.Registry do
     - `{:ok, location, range}` where location is the URL for the next chunk upload and range is the current range of uploaded bytes
     - `{:error, reason}` if the upload fails
   """
-  def upload_chunk(%{storage: storage}, repo, uuid, chunk) do
-    # TODO: return this if the chunk is out of order
-    :EXT_BLOB_UPLOAD_OUT_OF_ORDER
+  def upload_chunk(%{storage: storage}, repo, uuid, chunk, range) do
+    adapter = adapter(storage)
 
-    # with {:ok, _location, range} <- get_upload_status(storage, repo, uuid) do
-    #   if range == "0-0" do
-    #     {:error, :EXT_BLOB_UPLOAD_OUT_OF_ORDER}
-    #   end
-    # end
-
-    case storage.__struct__.upload_chunk(storage, repo, uuid, chunk) do
-      {:ok, range} ->
-        {:ok, blobs_uploads_path(repo, uuid), range}
-
-      error ->
-        error
+    with :ok <- adapter.upload_exists?(storage, repo, uuid),
+         {:ok, size} <- adapter.get_upload_size(storage, repo, uuid),
+         :ok <- verify_upload_order(size, range),
+         {:ok, range} <- adapter.upload_chunk(storage, repo, uuid, chunk, range) do
+      {:ok, blobs_uploads_path(repo, uuid), range}
+    else
+      {:error, err} -> {:error, err}
     end
-  end
-
-  @doc """
-  Calculates the range of a chunk of data.
-
-  ## Examples
-    iex> OCI.Registry.calculate_range("hello")
-    "0-4"
-
-    iex> OCI.Registry.calculate_range("hello", 1)
-    "1-5"
-  """
-  @spec calculate_range(bitstring(), pos_integer() | nil) :: nonempty_binary()
-  def calculate_range(data, start_byte \\ 0) do
-    end_byte = start_byte + byte_size(data) - 1
-    "#{start_byte}-#{end_byte}"
   end
 
   @doc """
@@ -181,22 +159,6 @@ defmodule OCI.Registry do
     storage.__struct__.list_tags(storage, repo, pagination)
   end
 
-  def sha256(data) do
-    :crypto.hash(:sha256, data) |> Base.encode16(case: :lower)
-  end
-
-  def verify_digest(data, digest) do
-    case digest do
-      "sha256:" <> hash ->
-        computed = sha256(data)
-
-        if computed == hash, do: :ok, else: {:error, :DIGEST_INVALID}
-
-      _ ->
-        {:error, :DIGEST_INVALID}
-    end
-  end
-
   @doc """
   Mounts a blob from one repository to another.
   Returns {:ok, location} on success, {:error, :BLOB_UNKNOWN} if the source blob doesn't exist.
@@ -220,11 +182,126 @@ defmodule OCI.Registry do
     end
   end
 
-  defp blobs_digest_path(repo, digest) do
+  @doc """
+  Calculates the range of a chunk of data.
+
+  ## Examples
+    iex> OCI.Registry.calculate_range("hello")
+    "0-4"
+
+    iex> OCI.Registry.calculate_range("hello", 1)
+    "1-5"
+  """
+  @spec calculate_range(bitstring(), non_neg_integer() | nil) :: nonempty_binary()
+  def calculate_range(data, start_byte \\ 0) do
+    end_byte = start_byte + byte_size(data) - 1
+    "#{start_byte}-#{end_byte}"
+  end
+
+  @doc """
+  Calculates the SHA-256 hash of the given data and returns it as a lowercase hexadecimal string.
+
+  ## Parameters
+    - data: The binary data to hash
+
+  ## Returns
+    A lowercase hexadecimal string representing the SHA-256 hash.
+
+  ## Examples
+      iex> OCI.Registry.sha256("hello")
+      "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+  """
+  @spec sha256(binary()) :: String.t()
+  def sha256(data) do
+    :crypto.hash(:sha256, data) |> Base.encode16(case: :lower)
+  end
+
+  @doc """
+  Verifies that the given data matches the provided digest.
+
+  ## Parameters
+    - data: The binary data to verify
+    - digest: The digest to verify against (must start with "sha256:")
+
+  ## Returns
+    - `:ok` if the data matches the digest
+    - `{:error, :DIGEST_INVALID}` if the digest is invalid or doesn't match
+
+  ## Examples
+      iex> OCI.Registry.verify_digest("hello", "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824")
+      :ok
+
+      iex> OCI.Registry.verify_digest("hello", "sha256:wronghash")
+      {:error, :DIGEST_INVALID}
+
+      iex> OCI.Registry.verify_digest("hello", "invalid-digest")
+      {:error, :DIGEST_INVALID}
+  """
+  @spec verify_digest(binary(), String.t()) :: :ok | {:error, :DIGEST_INVALID}
+  def verify_digest(data, digest) do
+    case digest do
+      "sha256:" <> hash ->
+        computed = sha256(data)
+
+        if computed == hash, do: :ok, else: {:error, :DIGEST_INVALID}
+
+      _ ->
+        {:error, :DIGEST_INVALID}
+    end
+  end
+
+  @doc """
+  Generates the path for a blob with the given digest in a repository.
+
+  ## Parameters
+    - repo: The repository name
+    - digest: The digest of the blob (e.g. "sha256:abc123...")
+
+  ## Returns
+    A string representing the full path to the blob.
+
+  ## Examples
+      iex> OCI.Registry.blobs_digest_path("myrepo", "sha256:abc123")
+      "/v2/myrepo/blobs/sha256:abc123"
+  """
+  @spec blobs_digest_path(String.t(), String.t()) :: String.t()
+  def blobs_digest_path(repo, digest) do
     "/v2/#{repo}/blobs/#{digest}"
   end
 
-  defp blobs_uploads_path(repo, uuid) do
+  @doc """
+  Generates the path for an ongoing blob upload session.
+
+  ## Parameters
+    - repo: The repository name
+    - uuid: The unique identifier for the upload session
+
+  ## Returns
+    A string representing the full path to the upload session.
+
+  ## Examples
+      iex> OCI.Registry.blobs_uploads_path("myrepo", "123e4567-e89b-12d3-a456-426614174000")
+      "/v2/myrepo/blobs/uploads/123e4567-e89b-12d3-a456-426614174000"
+  """
+  @spec blobs_uploads_path(String.t(), String.t()) :: String.t()
+  def blobs_uploads_path(repo, uuid) do
     "/v2/#{repo}/blobs/uploads/#{uuid}"
+  end
+
+  defp adapter(%{__struct__: a}), do: a
+
+  defp parse_range(range) do
+    [range_start, range_end] = String.split(range, "-") |> Enum.map(&String.to_integer/1)
+    {range_start, range_end}
+  end
+
+  defp verify_upload_order(current_size, range) do
+    {range_start, _} = range
+
+    if range_start == current_size do
+      :ok
+    else
+      {:error, :EXT_BLOB_UPLOAD_OUT_OF_ORDER}
+    end
   end
 end
