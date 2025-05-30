@@ -61,11 +61,7 @@ defmodule OCI.Storage.Local do
     {:ok, uuid}
   end
 
-  @impl true
-  def upload_chunk(%__MODULE__{} = _registry, _repo, _uuid, _chunk, 0),
-    do: {:error, :BLOB_UPLOAD_INVALID}
-
-  def upload_chunk(%__MODULE__{} = storage, repo, uuid, chunk, _content_length) do
+  def upload_chunk(%__MODULE__{} = storage, repo, uuid, chunk) do
     case upload_exists?(storage, repo, uuid) do
       :ok ->
         upload_dir = upload_dir(storage, repo, uuid)
@@ -75,8 +71,7 @@ defmodule OCI.Storage.Local do
         data = combine_chunks(upload_dir)
 
         # return the total range of the upload
-        upload_size = :erlang.byte_size(data)
-        {:ok, "0-#{upload_size - 1}"}
+        {:ok, "0-#{:erlang.byte_size(data) - 1}"}
 
       err ->
         err

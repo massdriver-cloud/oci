@@ -214,8 +214,7 @@ defmodule OCI.Plug do
                registry,
                repo,
                upload_id,
-               chunk,
-               "0-#{:erlang.byte_size(chunk) - 1}"
+               chunk
              ) do
           {:ok, _, _} ->
             :ok
@@ -279,9 +278,8 @@ defmodule OCI.Plug do
   defp upload_chunk(conn, repo, uuid) do
     registry = conn.private[:oci_registry]
     chunk = conn.assigns[:raw_body]
-    size = :erlang.byte_size(chunk)
 
-    case Registry.upload_chunk(registry, repo, uuid, chunk, size) do
+    case Registry.upload_chunk(registry, repo, uuid, chunk) do
       {:ok, location, range} ->
         conn
         |> put_resp_header("location", location)
@@ -296,10 +294,10 @@ defmodule OCI.Plug do
   defp get_upload_status(conn, repo, uuid) do
     registry = conn.private[:oci_registry]
 
-    OCI.Inspector.pry(binding())
-
     case Registry.get_upload_status(registry, repo, uuid) do
       {:ok, location, range} ->
+        OCI.Inspector.pry(binding())
+
         conn
         |> put_resp_header("range", range)
         |> put_resp_header("location", location)
@@ -327,8 +325,7 @@ defmodule OCI.Plug do
              registry,
              repo,
              uuid,
-             conn.assigns[:raw_body],
-             content_length
+             conn.assigns[:raw_body]
            ) do
         {:ok, _, _} ->
           :ok

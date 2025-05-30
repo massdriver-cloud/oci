@@ -54,14 +54,13 @@ defmodule OCI.Registry do
     - repo: The repository name
     - uuid: The upload session ID
     - chunk: The binary data chunk to upload
-    - content_length: The length of the chunk
 
   ## Returns
     - `{:ok, location, range}` where location is the URL for the next chunk upload and range is the current range of uploaded bytes
     - `{:error, reason}` if the upload fails
   """
-  def upload_chunk(%{storage: storage}, repo, uuid, chunk, content_length) do
-    case storage.__struct__.upload_chunk(storage, repo, uuid, chunk, content_length) do
+  def upload_chunk(%{storage: storage}, repo, uuid, chunk) do
+    case storage.__struct__.upload_chunk(storage, repo, uuid, chunk) do
       {:ok, range} ->
         {:ok, blobs_uploads_path(repo, uuid), range}
 
