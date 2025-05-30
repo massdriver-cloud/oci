@@ -279,7 +279,7 @@ defmodule OCI.Registry do
     "#{start_byte}-#{end_byte}"
   end
 
-  @docp """
+  @doc """
   Extracts the module name from a struct.
 
   ## Examples
@@ -287,7 +287,7 @@ defmodule OCI.Registry do
       OCI.Storage.Local
   """
   @spec adapter(%{__struct__: module()}) :: module()
-  defp adapter(%{__struct__: a}), do: a
+  def adapter(%{__struct__: a}), do: a
 
   @doc """
   Parses a Content-Range header value into start and end positions.
@@ -305,7 +305,7 @@ defmodule OCI.Registry do
       {1024, 2047}
   """
   @spec parse_range(String.t()) :: {non_neg_integer(), non_neg_integer()}
-  defp parse_range(range) do
+  def parse_range(range) do
     [range_start, range_end] = String.split(range, "-") |> Enum.map(&String.to_integer/1)
     {range_start, range_end}
   end
@@ -345,13 +345,14 @@ defmodule OCI.Registry do
       iex> OCI.Registry.verify_upload_order(1024, "2048-3071")
       {:error, :EXT_BLOB_UPLOAD_OUT_OF_ORDER}
   """
+
   @spec verify_upload_order(non_neg_integer(), nil | String.t()) ::
           :ok | {:error, :EXT_BLOB_UPLOAD_OUT_OF_ORDER}
-  defp verify_upload_order(_current_size, nil) do
+  def verify_upload_order(_current_size, nil) do
     :ok
   end
 
-  defp verify_upload_order(current_size, range) do
+  def verify_upload_order(current_size, range) do
     {range_start, _range_end} = parse_range(range)
 
     if range_start == current_size do
