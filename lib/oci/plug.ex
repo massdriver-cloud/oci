@@ -70,6 +70,7 @@ defmodule OCI.Plug do
   defp handler(conn) do
     segments = conn.path_info
 
+    # TODO: put conn.method matchers below... (OCI.Handler)
     segments
     |> Enum.reverse()
     |> case do

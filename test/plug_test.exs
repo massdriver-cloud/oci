@@ -35,9 +35,26 @@ defmodule OCI.PlugTest do
   end
 
   describe "supports various repo name formats" do
-    test "image"
-    test "namespace/name"
-    test "org/team/image"
+    test "one-level naming (nginx)", %{conn: conn} do
+      conn = conn |> post("/nginx/blobs/uploads")
+      assert conn.status == 202
+      assert [location] = get_resp_header(conn, "location")
+      assert String.starts_with?(location, "/v2/nginx/blobs/uploads/")
+    end
+
+    test "two-level naming (hexpm/elixir)", %{conn: conn} do
+      conn = conn |> post("/hexpm/elixir/blobs/uploads")
+      assert conn.status == 202
+      assert [location] = get_resp_header(conn, "location")
+      assert String.starts_with?(location, "/v2/hexpm/elixir/blobs/uploads/")
+    end
+
+    test "three-level naming (big-org/big-team/big-project)", %{conn: conn} do
+      conn = conn |> post("/big-org/big-team/big-project/blobs/uploads")
+      assert conn.status == 202
+      assert [location] = get_resp_header(conn, "location")
+      assert String.starts_with?(location, "/v2/big-org/big-team/big-project/blobs/uploads/")
+    end
   end
 
   defp get(conn, path, query_params \\ nil) do
