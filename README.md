@@ -10,6 +10,8 @@
 
 An [OCI](https://opencontainers.org/) (Open Container Initiative) compliant V2 registry server implementation for Elixir. This library provides a plug-based solution that can be integrated into any Elixir web application, with configurable storage and authentication adapters.
 
+**This is nowhere near production-ready.**
+
 ## Features
 
 - Full OCI Distribution Specification V2 compliance
@@ -18,7 +20,7 @@ An [OCI](https://opencontainers.org/) (Open Container Initiative) compliant V2 r
 - Easy integration with Phoenix applications
 - Support for Docker and OCI image formats
 - Compatible with Docker CLI and ORAS tools
-- Support for hierarchical repository naming (namespace/name)
+- Support for various repository naming conventions (`nginx`, `hexpm/elixir`, `big-corp/big-team/big-project`)
 
 ## Repository Naming
 
@@ -29,18 +31,14 @@ This registry supports the standard OCI repository naming convention with strict
 - ✅ `org/team/project` - Multi-level namespaces
 - IT CAN JUST KEEP GOING (I THINK)
 
-This ensures consistent routing and storage organization while maintaining compatibility with standard container registry conventions.
-
 ## Installation
-
-**This is not yet production-ready.**
 
 The package can be installed by adding `oci` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:oci, "~> 0.1.0"}
+    {:oci, "~> 0.0.1"}
   ]
 end
 ```
@@ -103,94 +101,21 @@ oras pull localhost:5000/myorg/myapp:latest
 ### Custom Storage Adapter
 
 ```elixir
-defmodule MyStorageAdapter do
-  @behaviour OCI.Storage.Adapter
-
-  defstruct [:path]
-
-  def init(config) do
-    %__MODULE__{path: Keyword.fetch!(config, :path)}
-  end
-
-  # Implement required callbacks...
-end
 ```
 
 ### Custom Authentication
 
 ```elixir
-defmodule MyAuthAdapter do
-  @behaviour OCI.Auth.Adapter
-
-  def authenticate(authorization) do
-    # Implement your authentication logic
-  end
-
-  def authorize(ctx, action, resource) do
-    # Implement your authorization logic
-  end
-
-  def challenge(registry) do
-    {"Basic", ~s(realm="#{registry.realm}")}
-  end
-end
-```
-
-## Configuration
-
-The following configuration options are available in your `config.exs`:
-
-```elixir
-config :oci,
-  storage: [
-    adapter: OCI.Storage.Local,
-    config: [
-      path: "./tmp/"
-    ]
-  ],
-  json_library: Jason
 ```
 
 ## Development
 
 ### Running Tests
 
+This will run basic plug tests and the [conformance suite](./test/support/conformance_suite.ex) against a phoenix endpoint.
+
 ```bash
 mix test
-```
-
-### Running Tests in Watch Mode
-
-To automatically run tests when files change:
-
-```bash
-mix test.watch
-```
-
-### Running Credo
-
-```bash
-mix credo
-```
-
-### Running Dialyzer
-
-```bash
-mix dialyzer
-```
-
-### Running Documentation Generation
-
-```bash
-mix docs
-```
-
-### Running Full QA Suite
-
-To run all quality assurance checks (tests, credo, dialyzer, and docs generation):
-
-```bash
-mix qa
 ```
 
 ## Contributing
@@ -201,12 +126,6 @@ mix qa
 4. Run the QA suite to ensure quality (`mix qa`)
 5. Push to the branch (`git push origin my-new-feature`)
 6. Create new Pull Request
-
-Note: Before submitting a PR, please ensure all QA checks pass by running `mix qa`. This will run:
-- Unit tests
-- Code style checks (Credo)
-- Static type checking (Dialyzer)
-- Documentation generation
 
 ## License
 
