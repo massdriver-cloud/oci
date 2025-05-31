@@ -8,6 +8,8 @@ defmodule OCI.Plug do
   alias OCI.Registry
   alias OCI.Registry.Pagination
 
+  @api_version "v2"
+
   @impl true
   def init(opts) do
     registry = Keyword.get(opts, :registry)
@@ -37,7 +39,7 @@ defmodule OCI.Plug do
   end
 
   @impl true
-  def call(%{script_name: ["v2"]} = conn, %{registry: registry}) do
+  def call(%{script_name: [@api_version]} = conn, %{registry: registry}) do
     conn =
       conn
       |> ensure_request_id()
