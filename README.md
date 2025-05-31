@@ -49,8 +49,26 @@ end
 
 ### Basic Phoenix Integration
 
+**config/config.ex**
+
 ```elixir
-# In your router.ex
+config :oci,
+  max_manifest_size: 4 * 1024 * 1024,
+  max_blob_upload_chunk_size: 10 * 1024 * 1024,
+  enable_blob_deletion: true,
+  enable_manifest_deletion: true,
+  repo_name_pattern: ~r/^([a-z0-9]+(?:[._-][a-z0-9]+)*)(\/[a-z0-9]+(?:[._-][a-z0-9]+)*)*$/
+  storage: [
+    adapter: OCI.Storage.Local,
+    config: [
+      path: "./tmp/"
+    ]
+  ]
+```
+
+**router.ex:**
+
+```elixir
 use Phoenix.Router
 import OCI.PhoenixRouter
 

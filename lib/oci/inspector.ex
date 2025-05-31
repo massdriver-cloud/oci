@@ -124,10 +124,6 @@ defmodule OCI.Inspector do
     - `nil` if no inspector context is found
     - The result of `IEx.pry()` if inspector context exists
 
-  ## Examples
-
-      iex> OCI.Inspector.pry(binding())
-      nil  # Returns nil if not in a conformance test context
   """
   @spec pry(Keyword.t()) :: nil | any()
   def pry(binding) do

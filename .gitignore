@@ -30,4 +30,7 @@ TODO.md
 
 # Conformance test output
 .tmp
+
+# Local things
 .elixir_ls
+priv/plts

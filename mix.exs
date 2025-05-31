@@ -20,6 +20,7 @@ defmodule OCI.MixProject do
         extras: ["README.md"]
       ],
       aliases: aliases(),
+      dialyzer: dialyzer(),
       test_coverage: [tool: ExCoveralls]
     ]
   end
@@ -35,12 +36,17 @@ defmodule OCI.MixProject do
         "coveralls.html": :test,
         "coveralls.post": :test,
         coveralls: :test,
-        credo: :dev,
-        dialyzer: :dev,
-        docs: :dev,
         qa: :test,
         test: :test
       ]
+    ]
+  end
+
+  defp dialyzer do
+    [
+      plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
+      plt_add_apps: [:mix, :iex, :ex_unit],
+      ignore_warnings: ".dialyzer_ignore.exs"
     ]
   end
 

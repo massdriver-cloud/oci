@@ -127,6 +127,10 @@ defmodule OCI.Registry do
     end
   end
 
+  def get_upload_size(%{storage: storage}, repo, uuid) do
+    storage.__struct__.get_upload_size(storage, repo, uuid)
+  end
+
   def complete_blob_upload(_registry, _repo, _uuid, nil), do: {:error, :DIGEST_INVALID}
 
   def complete_blob_upload(%{storage: storage}, repo, uuid, digest) do

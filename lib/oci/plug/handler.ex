@@ -1,4 +1,12 @@
 defmodule OCI.Plug.Handler do
+  @moduledoc """
+  Handles OCI requests.
+
+  This module is responsible for dispatching OCI requests to the appropriate
+  handler function.
+
+  It also validates the repository name and handles pagination.
+  """
   import Plug.Conn
   alias OCI.Registry
   alias OCI.Registry.Pagination
@@ -24,9 +32,6 @@ defmodule OCI.Plug.Handler do
         registry = conn.private[:oci_registry]
 
         dispatch(conn, action, registry, repo, id)
-
-      {:error, oci_error_status} ->
-        error_resp(conn, oci_error_status)
 
       {:error, oci_error_status, details} ->
         error_resp(conn, oci_error_status, details)
@@ -153,7 +158,6 @@ defmodule OCI.Plug.Handler do
         )
 
       _ ->
-        registry = conn.private[:oci_registry]
         chunk = conn.assigns[:raw_body]
 
         case Registry.upload_chunk(registry, repo, uuid, chunk, content_range) do

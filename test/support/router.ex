@@ -1,4 +1,5 @@
 defmodule TestRegistryWeb do
+  @moduledoc false
   defmodule Router do
     @moduledoc false
     use Phoenix.Router
