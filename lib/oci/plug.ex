@@ -36,35 +36,8 @@ defmodule OCI.Plug do
     %{registry: registry}
   end
 
-  defp get_authorization_header(conn) do
-    conn
-    |> Plug.Conn.get_req_header("authorization")
-    |> List.first()
-  end
-
-  def authenticate(conn) do
-    conn
-    |> get_authorization_header()
-    |> case do
-      nil ->
-        conn
-
-      authorization ->
-        authorization
-        |> OCI.Auth.Adapter.authenticate()
-        |> case do
-          {:ok, ctx} ->
-            conn
-            |> assign(:oci_ctx, ctx)
-
-          {:error, reason} ->
-            error_resp(conn, reason)
-        end
-    end
-  end
-
   @impl true
-  def call(conn, %{registry: registry}) do
+  def call(%{script_name: ["v2"]} = conn, %{registry: registry}) do
     conn =
       conn
       |> ensure_request_id()
@@ -81,42 +54,28 @@ defmodule OCI.Plug do
         |> assign(:raw_body, body)
         |> fetch_query_params()
         |> OCI.Inspector.inspect("before:handle_request/1")
-        |> handle_request()
+        |> handle_v2()
 
       {:error, :UNAUTHORIZED} ->
         challenge(conn)
     end
   end
 
-  defp authorize(%{assigns: %{oci_ctx: ctx}}) do
-    # TODO: infer and pass authorization info
-    OCI.Auth.Adapter.authorize(ctx, "TODO:ACTION", "TODO:RESOURCE")
+  def call(conn, _opts) do
+    error_resp(conn, :UNSUPPORTED, "OCI Registry must be mounted at /v2")
   end
-
-  defp authorize(_) do
-    {:error, :UNAUTHORIZED}
-  end
-
-  defp challenge(conn) do
-    registry = conn.private[:oci_registry]
-    {scheme, auth_param} = OCI.Auth.Adapter.challenge(registry)
-
-    conn
-    |> put_resp_header("www-authenticate", "#{scheme} #{auth_param}")
-    |> send_resp(401, "")
-    |> halt
-  end
-
-  defp handle_request(%{path_info: ["v2"]} = conn), do: ping(conn)
-  defp handle_request(%{path_info: ["v2" | _]} = conn), do: handle_v2(conn)
-  defp handle_request(conn), do: error_resp(conn, :UNSUPPORTED)
 
   defp handle_v2(conn) do
-    [_v2 | segments] = conn.path_info
+    segments = conn.path_info
 
     segments
     |> Enum.reverse()
     |> case do
+      [] ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(200, "{}")
+
       ["list", "tags" | repo] ->
         repo = repo |> Enum.reverse() |> Enum.join("/")
         list_tags(conn, repo)
@@ -463,12 +422,6 @@ defmodule OCI.Plug do
     end
   end
 
-  defp ping(conn) do
-    conn
-    |> put_resp_content_type("application/json")
-    |> send_resp(200, "{}")
-  end
-
   defp error_resp(conn, code, details \\ nil) do
     error = OCI.Error.init(code, details)
     body = %{errors: [error]} |> Jason.encode!()
@@ -499,5 +452,51 @@ defmodule OCI.Plug do
       [existing_id | _] ->
         put_private(conn, :plug_request_id, existing_id)
     end
+  end
+
+  defp get_authorization_header(conn) do
+    conn
+    |> Plug.Conn.get_req_header("authorization")
+    |> List.first()
+  end
+
+  def authenticate(conn) do
+    conn
+    |> get_authorization_header()
+    |> case do
+      nil ->
+        conn
+
+      authorization ->
+        authorization
+        |> OCI.Auth.Adapter.authenticate()
+        |> case do
+          {:ok, ctx} ->
+            conn
+            |> assign(:oci_ctx, ctx)
+
+          {:error, reason} ->
+            error_resp(conn, reason)
+        end
+    end
+  end
+
+  defp authorize(%{assigns: %{oci_ctx: ctx}}) do
+    # TODO: infer and pass authorization info
+    OCI.Auth.Adapter.authorize(ctx, "TODO:ACTION", "TODO:RESOURCE")
+  end
+
+  defp authorize(_) do
+    {:error, :UNAUTHORIZED}
+  end
+
+  defp challenge(conn) do
+    registry = conn.private[:oci_registry]
+    {scheme, auth_param} = OCI.Auth.Adapter.challenge(registry)
+
+    conn
+    |> put_resp_header("www-authenticate", "#{scheme} #{auth_param}")
+    |> send_resp(401, "")
+    |> halt
   end
 end
