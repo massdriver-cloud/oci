@@ -68,27 +68,40 @@ defmodule OCI.Plug do
   end
 
   defp handler(conn) do
-    segments = conn.path_info
-
-    # TODO: put conn.method matchers below... (OCI.Handler)
-    segments
+    # Reverse the path info, and the last parts after the known API path portions is the repo name.
+    # V2 is plucked off by the "script_name" when scope/forwarding from Phoenix
+    conn.path_info
     |> Enum.reverse()
     |> case do
       [] ->
-        conn
-        |> put_resp_content_type("application/json")
-        |> send_resp(200, "{}")
+        case conn.method do
+          "GET" ->
+            conn
+            |> put_resp_content_type("application/json")
+            |> send_resp(200, "{}")
 
-      ["list", "tags" | repo] ->
-        repo = repo |> Enum.reverse() |> Enum.join("/")
-        list_tags(conn, repo)
+          _ ->
+            error_resp(conn, :UNSUPPORTED)
+        end
 
-      ["uploads", "blobs" | repo] ->
-        repo = repo |> Enum.reverse() |> Enum.join("/")
-        initiate_blob_upload(conn, repo)
+      ["list", "tags" | rest] ->
+        repo = rest |> Enum.reverse() |> Enum.join("/")
 
-      [uuid, "uploads", "blobs" | repo] ->
-        repo = repo |> Enum.reverse() |> Enum.join("/")
+        case conn.method do
+          "GET" -> list_tags(conn, repo)
+          _ -> error_resp(conn, :UNSUPPORTED)
+        end
+
+      ["uploads", "blobs" | rest] ->
+        repo = rest |> Enum.reverse() |> Enum.join("/")
+
+        case conn.method do
+          "POST" -> initiate_blob_upload(conn, repo)
+          _ -> error_resp(conn, :UNSUPPORTED)
+        end
+
+      [uuid, "uploads", "blobs" | rest] ->
+        repo = rest |> Enum.reverse() |> Enum.join("/")
 
         case conn.method do
           "PATCH" -> upload_chunk(conn, repo, uuid)
@@ -98,8 +111,8 @@ defmodule OCI.Plug do
           _ -> error_resp(conn, :UNSUPPORTED)
         end
 
-      [digest, "blobs" | repo] ->
-        repo = repo |> Enum.reverse() |> Enum.join("/")
+      [digest, "blobs" | rest] ->
+        repo = rest |> Enum.reverse() |> Enum.join("/")
 
         case conn.method do
           "HEAD" -> head_blob(conn, repo, digest)
@@ -108,8 +121,8 @@ defmodule OCI.Plug do
           _ -> error_resp(conn, :UNSUPPORTED)
         end
 
-      [reference, "manifests" | repo] ->
-        repo = repo |> Enum.reverse() |> Enum.join("/")
+      [reference, "manifests" | rest] ->
+        repo = rest |> Enum.reverse() |> Enum.join("/")
 
         case conn.method do
           "PUT" -> put_manifest(conn, repo, reference)
