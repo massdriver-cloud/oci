@@ -63,4 +63,13 @@ defmodule OCI.PlugTest do
       assert String.starts_with?(location, "/v2/big-org/big-team/big-project/blobs/uploads/")
     end
   end
+
+  describe "validates the repo name format" do
+    test "invalid repo name", %{conn: conn} do
+      conn = override_registry_setting(conn, :repo_name_pattern, ~r/^[a-z0-9]+\/[a-z0-9]+$/)
+      conn = conn |> post("/nosinglelevelnames/blobs/uploads")
+      assert conn.status == 400
+      assert conn.resp_body == "invalid repo name: invalid-repo-name"
+    end
+  end
 end
