@@ -8,6 +8,8 @@ defmodule OCI.Registry do
 
   use TypedStruct
 
+  @repo_name_pattern ~r/^([a-z0-9]+(?:[._-][a-z0-9]+)*)(\/[a-z0-9]+(?:[._-][a-z0-9]+)*)*$/
+
   typedstruct do
     field :realm, String.t(), enforce: false, default: "Registry"
     field :storage, module(), enforce: true
@@ -15,6 +17,7 @@ defmodule OCI.Registry do
     field :max_blob_upload_chunk_size, pos_integer(), enforce: false, default: 10 * 1024 * 1024
     field :enable_blob_deletion, boolean(), enforce: false, default: true
     field :enable_manifest_deletion, boolean(), enforce: false, default: true
+    field :repo_name_pattern, Regex.t(), enforce: false, default: @repo_name_pattern
   end
 
   typedstruct module: Pagination do
@@ -35,6 +38,15 @@ defmodule OCI.Registry do
   """
   @spec api_version() :: String.t()
   def api_version, do: "v2"
+
+  def validate_name(registry, repo) do
+    if Regex.match?(registry.repo_name_pattern, repo) do
+      :ok
+    else
+      {:error, :NAME_INVALID,
+       "invalid repo name: #{repo}, must match pattern: #{inspect(registry.repo_name_pattern)}"}
+    end
+  end
 
   @doc """
   Initializes a new registry instance with the given configuration.
@@ -378,7 +390,6 @@ defmodule OCI.Registry do
       iex> OCI.Registry.verify_upload_order(1024, "2048-3071")
       {:error, :EXT_BLOB_UPLOAD_OUT_OF_ORDER}
   """
-
   @spec verify_upload_order(non_neg_integer(), nil | String.t()) ::
           :ok | {:error, :EXT_BLOB_UPLOAD_OUT_OF_ORDER}
   def verify_upload_order(_current_size, nil) do
