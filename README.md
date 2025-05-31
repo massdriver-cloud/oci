@@ -55,7 +55,7 @@ use Phoenix.Router
 import OCI.PhoenixRouter
 
 scope "/v2" do
-  oci_routes(repo: ":namespace/:name")
+  forward("/", OCI.Plug, [])
 end
 ```
 

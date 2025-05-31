@@ -23,6 +23,20 @@ defmodule OCI.Registry do
   end
 
   @doc """
+  Returns the API version string used in OCI registry paths.
+
+  This is used to construct paths for all registry operations.
+  Currently returns "v2" as per the OCI Distribution Specification.
+
+  ## Examples
+
+      iex> OCI.Registry.api_version()
+      "v2"
+  """
+  @spec api_version() :: String.t()
+  def api_version, do: "v2"
+
+  @doc """
   Initializes a new registry instance with the given configuration.
   """
   def init(opts) do
@@ -246,7 +260,26 @@ defmodule OCI.Registry do
   """
   @spec blobs_digest_path(String.t(), String.t()) :: String.t()
   def blobs_digest_path(repo, digest) do
-    "/v2/#{repo}/blobs/#{digest}"
+    "/#{api_version()}/#{repo}/blobs/#{digest}"
+  end
+
+  @doc """
+  Generates the path for a manifest reference in the OCI registry.
+
+  The path follows the OCI Distribution Specification format:
+  `/v2/:repository/manifests/:reference`
+
+  ## Examples
+
+      iex> OCI.Registry.manifests_reference_path("myorg/myrepo", "latest")
+      "/v2/myorg/myrepo/manifests/latest"
+
+      iex> OCI.Registry.manifests_reference_path("library/alpine", "sha256:24dda0a1be6293020e5355d4a09b9a8bb72a8b44c27b0ca8560669b8ed52d3ec")
+      "/v2/library/alpine/manifests/sha256:24dda0a1be6293020e5355d4a09b9a8bb72a8b44c27b0ca8560669b8ed52d3ec"
+  """
+  @spec manifests_reference_path(String.t(), String.t()) :: String.t()
+  def manifests_reference_path(repo, reference) do
+    "/#{api_version()}/#{repo}/manifests/#{reference}"
   end
 
   @doc """
@@ -262,7 +295,7 @@ defmodule OCI.Registry do
   """
   @spec blobs_uploads_path(String.t(), String.t()) :: String.t()
   def blobs_uploads_path(repo, uuid) do
-    "/v2/#{repo}/blobs/uploads/#{uuid}"
+    "/#{api_version()}/#{repo}/blobs/uploads/#{uuid}"
   end
 
   @doc """

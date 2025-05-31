@@ -3,7 +3,9 @@ defmodule TestRegistryWeb do
     @moduledoc false
     use Phoenix.Router
 
-    forward("/v2", OCI.Plug, [])
+    scope "/v2" do
+      forward("/", OCI.Plug, [])
+    end
   end
 
   defmodule Endpoint do

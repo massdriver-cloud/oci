@@ -54,7 +54,7 @@ defmodule OCI.Plug do
         |> assign(:raw_body, body)
         |> fetch_query_params()
         |> OCI.Inspector.inspect("before:handle_request/1")
-        |> handle_v2()
+        |> handler()
 
       {:error, :UNAUTHORIZED} ->
         challenge(conn)
@@ -62,10 +62,10 @@ defmodule OCI.Plug do
   end
 
   def call(conn, _opts) do
-    error_resp(conn, :UNSUPPORTED, "OCI Registry must be mounted at /v2")
+    error_resp(conn, :UNSUPPORTED, "OCI Registry must be mounted at /#{Registry.api_version()}")
   end
 
-  defp handle_v2(conn) do
+  defp handler(conn) do
     segments = conn.path_info
 
     segments
@@ -211,7 +211,7 @@ defmodule OCI.Plug do
     case Registry.put_manifest(registry, repo, reference, manifest, content_type) do
       {:ok, _digest} ->
         conn
-        |> put_resp_header("location", "/v2/#{repo}/manifests/#{reference}")
+        |> put_resp_header("location", Registry.manifests_reference_path(repo, reference))
         |> send_resp(201, "")
 
       {:error, oci_error_status} ->
