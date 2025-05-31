@@ -91,27 +91,18 @@ defmodule OCI.Inspector do
       request_id = conn.private[:plug_request_id]
       Process.put(:oci_inspector, %OCI.Inspector{request_id: request_id, test: test})
 
-      label = "🔍🔍🔍 [oci-conformance-test:#{label}] (#{test}):"
-
       digest = conn.query_params["digest"]
 
       content_length = Plug.Conn.get_req_header(conn, "content-length") |> List.first()
       content_range = Plug.Conn.get_req_header(conn, "content-range") |> List.first()
 
-      # credo:disable-for-next-line
-      IO.inspect(
-        "[#{conn.method}] #{conn.request_path} digest:#{digest} content-length=#{content_length} content-range=#{content_range}",
-        label: label
-      )
-
-      # credo:disable-for-next-line
-      IO.inspect(
-        %{
-          pid: self() |> Kernel.inspect(),
-          request_id: conn.private[:plug_request_id],
-          process_dict: Process.get()
-        },
-        label: "🔍🔍🔍 OCI Inspector — Runtime State"
+      Logger.info(
+        "🔍 🔍 🔍 OCI Inspector — Runtime State (#{label}):\n" <>
+          "\t[oci-conformance-test] (#{test}):\n" <>
+          "\t\t[#{conn.method}] #{conn.request_path}\n" <>
+          "\t\tdigest:#{digest} content-length=#{content_length} content-range=#{content_range}\n" <>
+          "\t\tpid:#{Kernel.inspect(self())}\n" <>
+          "\t\trequest_id:#{conn.private[:plug_request_id]}"
       )
     end
 
@@ -145,14 +136,11 @@ defmodule OCI.Inspector do
         nil
 
       %OCI.Inspector{request_id: request_id, test: test} ->
-        # credo:disable-for-next-line
-        IO.inspect(
-          %{
-            pid: self() |> Kernel.inspect(),
-            request_id: request_id,
-            process_dict: Process.get()
-          },
-          label: "🛠️🛠️🛠️ OCI Pry — Runtime State"
+        Logger.info(
+          "🔧 🔧 🔧 OCI Pry — Runtime State\n" <>
+            "\t[oci-conformance-test] (#{test}):\n" <>
+            "\t\tpid:#{Kernel.inspect(self())}\n" <>
+            "\t\trequest_id:#{request_id}"
         )
 
         # credo:disable-for-next-line
