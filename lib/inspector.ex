@@ -17,7 +17,7 @@ defmodule OCI.Inspector do
   Distribution Spec ([example: 02 Push Test](.tmp/oci-conformance/distribution-spec/conformance/02_push_test.go)):
 
   ```go
-  req.Header.Set("x-oci-conformance-test", g.CurrentSpecReport().FullText())
+  req.SetHeader("x-oci-conformance-test", g.CurrentSpecReport().FullText())
   ```
 
   In elixir, put an `OCI.Inspector.inspect/2` call in your plug pipeline to enable debugging. When a header comes through for inspection,

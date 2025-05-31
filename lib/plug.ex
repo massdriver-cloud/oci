@@ -76,6 +76,7 @@ defmodule OCI.Plug do
         max_body_size = max(registry.max_manifest_size, registry.max_blob_upload_chunk_size)
         {:ok, body, conn} = Plug.Conn.read_body(conn, length: max_body_size)
 
+        # TODO: remove the debug inspector and a note about its use.
         conn
         |> assign(:raw_body, body)
         |> fetch_query_params()

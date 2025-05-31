@@ -5,11 +5,12 @@ defmodule ConformanceSuite do
 
   require Logger
 
-  def clone_repo(repo, opts \\ []) do
+  def clone_repo(repo, branch, opts \\ []) do
     path = conformance_dir()
     force = Keyword.get(opts, :force, false)
 
     if force || !File.exists?(path) do
+      File.rm_rf!(path)
       Logger.info("🔄 Cloning distribution-spec repo to #{path}")
 
       {output, status} =
@@ -17,6 +18,8 @@ defmodule ConformanceSuite do
           "clone",
           "--depth",
           "1",
+          "--branch",
+          branch,
           repo,
           path
         ])
@@ -77,7 +80,8 @@ defmodule ConformanceSuite do
       {"OCI_REPORT_DIR", conformance_report_dir()}
     ]
 
-    Logger.info("🧪 Generating conformance report to #{conformance_json_report_path()}")
+    Logger.info("🧪 Generating conformance JSON report to #{conformance_json_report_path()}")
+    Logger.info("🧪 Generating conformance HTML report to #{conformance_html_report_path()}")
 
     System.cmd(
       conformance_bin_path(),
@@ -119,6 +123,10 @@ defmodule ConformanceSuite do
 
   def conformance_report_dir() do
     "#{conformance_dir()}/reports"
+  end
+
+  def conformance_html_report_path() do
+    "#{conformance_report_dir()}/report.html"
   end
 
   def conformance_json_report_path() do

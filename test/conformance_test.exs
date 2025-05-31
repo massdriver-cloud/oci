@@ -10,7 +10,7 @@ defmodule OCI.ConformanceTest do
     end)
   end
 
-  test "has run conformance specs" do
+  test "has did run conformance specs" do
     assert length(ConformanceSuite.reports()) > 0
   end
 
