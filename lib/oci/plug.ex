@@ -8,7 +8,7 @@ defmodule OCI.Plug do
   alias OCI.Registry
   alias OCI.Registry.Pagination
 
-  @api_version "v2"
+  @api_version OCI.Registry.api_version()
 
   @impl true
   def init(opts) do
