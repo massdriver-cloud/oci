@@ -69,7 +69,19 @@ defmodule OCI.PlugTest do
       conn = override_registry_setting(conn, :repo_name_pattern, ~r/^[a-z0-9]+\/[a-z0-9]+$/)
       conn = conn |> post("/nosinglelevelnames/blobs/uploads")
       assert conn.status == 400
-      assert conn.resp_body == "invalid repo name: invalid-repo-name"
+
+      error = Jason.decode!(conn.resp_body)
+
+      assert error == %{
+               "errors" => [
+                 %{
+                   "code" => "NAME_INVALID",
+                   "detail" =>
+                     "invalid repo name: nosinglelevelnames, must match pattern: ~r/^[a-z0-9]+\\/[a-z0-9]+$/",
+                   "message" => "invalid repository name"
+                 }
+               ]
+             }
     end
   end
 end

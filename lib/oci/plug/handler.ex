@@ -1,5 +1,3 @@
-# TODO:
-# [ ] return name invalid if it doesnt match the pattern
 defmodule OCI.Plug.Handler do
   import Plug.Conn
   alias OCI.Registry
@@ -11,10 +9,31 @@ defmodule OCI.Plug.Handler do
     |> send_resp(200, "{}")
   end
 
-  def handle(%{method: "GET"} = conn, ["list", "tags" | rest]) do
-    repo = rest |> Enum.reverse() |> Enum.join("/")
-    registry = conn.private[:oci_registry]
+  def handle(conn, segments) when length(segments) > 0 do
+    {rest, action, id} =
+      case segments do
+        ["list", "tags" | rest] -> {rest, :tags_list, nil}
+        ["uploads", "blobs" | rest] -> {rest, :blobs_uploads, nil}
+        [uuid, "uploads", "blobs" | rest] -> {rest, :blobs_uploads, uuid}
+        [digest, "blobs" | rest] -> {rest, :blobs, digest}
+        [reference, "manifests" | rest] -> {rest, :manifests, reference}
+      end
 
+    case validate_repo_name(conn, rest) do
+      {:ok, repo} ->
+        registry = conn.private[:oci_registry]
+
+        dispatch(conn, action, registry, repo, id)
+
+      {:error, oci_error_status} ->
+        error_resp(conn, oci_error_status)
+
+      {:error, oci_error_status, details} ->
+        error_resp(conn, oci_error_status, details)
+    end
+  end
+
+  def dispatch(%{method: "GET"} = conn, :tags_list, registry, repo, _id) do
     case Registry.list_tags(registry, repo, pagination(conn.query_params)) do
       {:ok, tags} ->
         conn
@@ -27,13 +46,13 @@ defmodule OCI.Plug.Handler do
   end
 
   # Cross-repo mounting
-  def handle(%{method: "POST", query_params: %{"mount" => mount, "from" => from}} = conn, [
-        "uploads",
-        "blobs" | rest
-      ]) do
-    repo = rest |> Enum.reverse() |> Enum.join("/")
-    registry = conn.private[:oci_registry]
-
+  def dispatch(
+        %{method: "POST", query_params: %{"mount" => mount, "from" => from}} = conn,
+        :blobs_uploads,
+        registry,
+        repo,
+        _id
+      ) do
     case Registry.mount_blob(registry, repo, mount, from) do
       {:ok, location} ->
         case String.match?(location, ~r{/blobs/uploads/}) do
@@ -54,13 +73,13 @@ defmodule OCI.Plug.Handler do
   end
 
   # Monolithic POST
-  def handle(%{method: "POST", query_params: %{"digest" => digest}} = conn, [
-        "uploads",
-        "blobs" | rest
-      ]) do
-    repo = rest |> Enum.reverse() |> Enum.join("/")
-    registry = conn.private[:oci_registry]
-
+  def dispatch(
+        %{method: "POST", query_params: %{"digest" => digest}} = conn,
+        :blobs_uploads,
+        registry,
+        repo,
+        _id
+      ) do
     case Registry.initiate_blob_upload(registry, repo) do
       {:ok, location} ->
         upload_id = location |> String.split("/") |> List.last()
@@ -101,10 +120,7 @@ defmodule OCI.Plug.Handler do
   end
 
   # Initiate a chunked blob upload session
-  def handle(%{method: "POST"} = conn, ["uploads", "blobs" | rest]) do
-    repo = rest |> Enum.reverse() |> Enum.join("/")
-    registry = conn.private[:oci_registry]
-
+  def dispatch(%{method: "POST"} = conn, :blobs_uploads, registry, repo, _id) do
     case Registry.initiate_blob_upload(registry, repo) do
       {:ok, location} ->
         conn
@@ -125,8 +141,7 @@ defmodule OCI.Plug.Handler do
   # - Must be inclusive on both ends (e.g. "0-1023")
   # - First chunk must begin with 0
   # - Must match regex ^[0-9]+-[0-9]+$
-  def handle(%{method: "PATCH"} = conn, [uuid, "uploads", "blobs" | rest]) do
-    repo = rest |> Enum.reverse() |> Enum.join("/")
+  def dispatch(%{method: "PATCH"} = conn, :blobs_uploads, registry, repo, uuid) do
     content_range = conn |> get_req_header("content-range") |> List.first()
 
     case content_range do
@@ -154,10 +169,7 @@ defmodule OCI.Plug.Handler do
     end
   end
 
-  def handle(%{method: "GET"} = conn, [uuid, "uploads", "blobs" | rest]) do
-    repo = rest |> Enum.reverse() |> Enum.join("/")
-    registry = conn.private[:oci_registry]
-
+  def dispatch(%{method: "GET"} = conn, :blobs_uploads, registry, repo, uuid) do
     case Registry.get_upload_status(registry, repo, uuid) do
       {:ok, location, range} ->
         conn
@@ -171,9 +183,7 @@ defmodule OCI.Plug.Handler do
   end
 
   # The closing `PUT` request MUST include the `<digest>` of the whole blob (not the final chunk) as a query parameter.# The closing `PUT` request MUST include the `<digest>` of the whole blob (not the final chunk) as a query parameter.
-  def handle(%{method: "PUT"} = conn, [uuid, "uploads", "blobs" | rest]) do
-    repo = rest |> Enum.reverse() |> Enum.join("/")
-    registry = conn.private[:oci_registry]
+  def dispatch(%{method: "PUT"} = conn, :blobs_uploads, registry, repo, uuid) do
     digest = conn.query_params["digest"]
 
     # Must have a content-length, it may be 0 depending on if a final chunk is being uploaded or not with the digest.
@@ -207,10 +217,7 @@ defmodule OCI.Plug.Handler do
     end
   end
 
-  def handle(%{method: "DELETE"} = conn, [uuid, "uploads", "blobs" | rest]) do
-    repo = rest |> Enum.reverse() |> Enum.join("/")
-    registry = conn.private[:oci_registry]
-
+  def dispatch(%{method: "DELETE"} = conn, :blobs_uploads, registry, repo, uuid) do
     case Registry.cancel_blob_upload(registry, repo, uuid) do
       :ok ->
         send_resp(conn, 204, "")
@@ -220,10 +227,7 @@ defmodule OCI.Plug.Handler do
     end
   end
 
-  def handle(%{method: "HEAD"} = conn, [digest, "blobs" | rest]) do
-    repo = rest |> Enum.reverse() |> Enum.join("/")
-    registry = conn.private[:oci_registry]
-
+  def dispatch(%{method: "HEAD"} = conn, :blobs, registry, repo, digest) do
     case Registry.blob_exists?(registry, repo, digest) do
       {:ok, size} ->
         conn
@@ -235,10 +239,7 @@ defmodule OCI.Plug.Handler do
     end
   end
 
-  def handle(%{method: "GET"} = conn, [digest, "blobs" | rest]) do
-    repo = rest |> Enum.reverse() |> Enum.join("/")
-    registry = conn.private[:oci_registry]
-
+  def dispatch(%{method: "GET"} = conn, :blobs, registry, repo, digest) do
     case Registry.get_blob(registry, repo, digest) do
       {:ok, content} ->
         conn
@@ -250,10 +251,7 @@ defmodule OCI.Plug.Handler do
     end
   end
 
-  def handle(%{method: "DELETE"} = conn, [digest, "blobs" | rest]) do
-    repo = rest |> Enum.reverse() |> Enum.join("/")
-    registry = conn.private[:oci_registry]
-
+  def dispatch(%{method: "DELETE"} = conn, :blobs, registry, repo, digest) do
     case Registry.delete_blob(registry, repo, digest) do
       :ok ->
         send_resp(conn, 202, "")
@@ -263,9 +261,7 @@ defmodule OCI.Plug.Handler do
     end
   end
 
-  def handle(%{method: "PUT"} = conn, [reference, "manifests" | rest]) do
-    repo = rest |> Enum.reverse() |> Enum.join("/")
-    registry = conn.private[:oci_registry]
+  def dispatch(%{method: "PUT"} = conn, :manifests, registry, repo, reference) do
     manifest = conn.assigns[:raw_body]
 
     content_type = get_req_header(conn, "content-type") |> List.first()
@@ -281,10 +277,7 @@ defmodule OCI.Plug.Handler do
     end
   end
 
-  def handle(%{method: "GET"} = conn, [reference, "manifests" | rest]) do
-    repo = rest |> Enum.reverse() |> Enum.join("/")
-    registry = conn.private[:oci_registry]
-
+  def dispatch(%{method: "GET"} = conn, :manifests, registry, repo, reference) do
     case Registry.get_manifest(registry, repo, reference) do
       {:ok, manifest, content_type, _digest} ->
         conn
@@ -296,10 +289,7 @@ defmodule OCI.Plug.Handler do
     end
   end
 
-  def handle(%{method: "HEAD"} = conn, [reference, "manifests" | rest]) do
-    repo = rest |> Enum.reverse() |> Enum.join("/")
-    registry = conn.private[:oci_registry]
-
+  def dispatch(%{method: "HEAD"} = conn, :manifests, registry, repo, reference) do
     case Registry.head_manifest(registry, repo, reference) do
       {:ok, content_type, _digest, size} ->
         conn
@@ -312,10 +302,8 @@ defmodule OCI.Plug.Handler do
     end
   end
 
-  def handle(%{method: "DELETE"} = conn, [reference, "manifests" | rest]) do
-    repo = rest |> Enum.reverse() |> Enum.join("/")
-
-    case Registry.delete_manifest(conn.private[:oci_registry], repo, reference) do
+  def dispatch(%{method: "DELETE"} = conn, :manifests, registry, repo, reference) do
+    case Registry.delete_manifest(registry, repo, reference) do
       :ok ->
         conn
         |> put_status(202)
@@ -326,9 +314,9 @@ defmodule OCI.Plug.Handler do
     end
   end
 
-  def handle(conn, segments) do
+  def dispatch(conn, _action, _registry, _repo, _id) do
     method = conn.method
-    path = segments |> Enum.reverse() |> Enum.join("/")
+    path = conn.request_path
 
     # # TODO: should this a 404?
     error_resp(conn, :UNSUPPORTED, "Unsupported [#{method}] #{path}")
