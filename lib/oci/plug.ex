@@ -31,13 +31,13 @@ defmodule OCI.Plug do
       |> ensure_request_id()
       |> put_private(:oci_registry, registry)
       |> authenticate()
-      |> authorize()
       |> fetch_query_params()
       |> set_raw_body()
 
-    case old_auth(conn) do
+    case authorize(conn) do
       :ok ->
-        # TODO: remove the debug inspector and a note about its use.
+        # TODO: remove the debug inspector and a note about its use; with conformance, it will always
+        # trigger twice outside of auth because conformance tries unauthed, then authed.
         conn
         |> OCI.Inspector.inspect("before:handle_request/1")
         |> OCI.Plug.Handler.handle(segments)
@@ -102,15 +102,7 @@ defmodule OCI.Plug do
     end
   end
 
-  def authorize(%{halted: true} = conn) do
-    conn
-  end
-
-  def authorize(conn) do
-    conn
-  end
-
-  defp old_auth(%{private: %{oci_registry: registry}, assigns: %{oci_ctx: ctx}}) do
+  defp authorize(%{private: %{oci_registry: registry}, assigns: %{oci_ctx: ctx}}) do
     # TODO: infer and pass authorization info, pass repo as well
     action = :noop
     id = nil
@@ -118,7 +110,7 @@ defmodule OCI.Plug do
     Registry.authorize(registry, ctx, action, id)
   end
 
-  defp old_auth(_) do
+  defp authorize(_) do
     {:error, :UNAUTHORIZED}
   end
 
