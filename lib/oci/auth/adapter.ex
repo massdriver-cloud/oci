@@ -37,10 +37,13 @@ defmodule OCI.Auth.Adapter do
   """
   @type ctx_t :: map()
 
+  @type error_details_t :: map() | String.t() | nil
+
   @callback init(config :: map()) :: {:ok, t()} | {:error, term()}
 
   @callback authenticate(auth_strategy :: t(), authorization :: authorization_t()) ::
-              {:ok, context :: ctx_t()} | {:error, error_type :: atom(), details :: any()}
+              {:ok, context :: ctx_t()}
+              | {:error, error_type :: atom(), details :: error_details_t()}
 
   @callback authorize(
               auth_strategy :: t(),
@@ -48,7 +51,7 @@ defmodule OCI.Auth.Adapter do
               action :: atom(),
               resource :: any()
             ) ::
-              :ok | {:error, error_type :: atom(), details :: any()}
+              :ok | {:error, error_type :: atom(), details :: error_details_t()}
 
   @callback challenge(registry :: OCI.Registry.t()) :: {String.t(), String.t()}
 end

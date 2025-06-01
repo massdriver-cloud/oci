@@ -61,11 +61,6 @@ defmodule OCI.Auth.Static do
   end
 
   @impl true
-  def authorize(_auth, _ctx, _action, _resource) do
-    {:error, :UNAUTHORIZED}
-  end
-
-  @impl true
   def challenge(registry) do
     {"Basic", ~s(realm="#{registry.realm}")}
   end

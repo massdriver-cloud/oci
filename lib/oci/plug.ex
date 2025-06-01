@@ -27,8 +27,9 @@ defmodule OCI.Plug do
       |> ensure_request_id()
       |> put_private(:oci_registry, registry)
       |> authenticate()
+      |> authorize()
 
-    case authorize(conn) do
+    case old_auth(conn) do
       :ok ->
         max_body_size = max(registry.max_manifest_size, registry.max_blob_upload_chunk_size)
         {:ok, body, conn} = Plug.Conn.read_body(conn, length: max_body_size)
@@ -45,7 +46,7 @@ defmodule OCI.Plug do
         |> OCI.Plug.Handler.handle(segments)
 
       {:error, :UNAUTHORIZED} ->
-        challenge(conn)
+        challenge_resp(conn)
     end
   end
 
@@ -53,7 +54,7 @@ defmodule OCI.Plug do
     error_resp(conn, :UNSUPPORTED, "OCI Registry must be mounted at /#{Registry.api_version()}")
   end
 
-  defp error_resp(conn, code, details \\ nil) do
+  defp error_resp(conn, code, details) do
     error = OCI.Error.init(code, details)
     body = %{errors: [error]} |> Jason.encode!()
 
@@ -92,31 +93,33 @@ defmodule OCI.Plug do
             conn
             |> assign(:oci_ctx, ctx)
 
-          {:error, reason} ->
-            error_resp(conn, reason)
+          {:error, _error_type, _details} ->
+            challenge_resp(conn)
         end
     end
   end
 
-  #
-
-  defp authorize(%{private: %{oci_registry: registry}, assigns: %{oci_ctx: ctx}}) do
-    # TODO: infer and pass authorization info, pass repo as well
-
-    # TODO take and return a conn so this can be all plugs above
-    # if ok, return the conn w/ . updated context (authorized action, authorized resource id if present)
-    # else add an authorized error and halt DENIED
-
-    # SHOULD authetnicate return a
-
-    Registry.authorize(registry, ctx, "TODO:ACTION", "TODO:RESOURCE")
+  def authorize(%{halted: true} = conn) do
+    conn
   end
 
-  defp authorize(_) do
+  def authorize(conn) do
+    conn
+  end
+
+  defp old_auth(%{private: %{oci_registry: registry}, assigns: %{oci_ctx: ctx}}) do
+    # TODO: infer and pass authorization info, pass repo as well
+    action = :noop
+    id = nil
+
+    Registry.authorize(registry, ctx, action, id)
+  end
+
+  defp old_auth(_) do
     {:error, :UNAUTHORIZED}
   end
 
-  defp challenge(conn) do
+  defp challenge_resp(conn) do
     registry = conn.private[:oci_registry]
     {scheme, auth_param} = Registry.challenge(registry)
 
