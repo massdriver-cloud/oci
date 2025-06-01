@@ -11,26 +11,17 @@ defmodule OCI.Plug.Handler do
   alias OCI.Registry
   alias OCI.Registry.Pagination
 
-  def handle(%{method: "GET"} = conn, []) do
+  def handle(%{assigns: %{oci_ctx: ctx}} = conn) when ctx.action == :ping do
     conn
     |> put_resp_content_type("application/json")
     |> send_resp(200, "{}")
   end
 
-  def handle(conn, segments) when length(segments) > 0 do
-    {rest, action, id} =
-      case segments do
-        ["list", "tags" | rest] -> {rest, :tags_list, nil}
-        ["uploads", "blobs" | rest] -> {rest, :blobs_uploads, nil}
-        [uuid, "uploads", "blobs" | rest] -> {rest, :blobs_uploads, uuid}
-        [digest, "blobs" | rest] -> {rest, :blobs, digest}
-        [reference, "manifests" | rest] -> {rest, :manifests, reference}
-      end
-
-    case validate_repo_name(conn, rest) do
+  def handle(%{assigns: %{oci_ctx: ctx}} = conn) do
+    case validate_repo_name(conn, ctx.repo) do
       {:ok, repo} ->
         registry = conn.private[:oci_registry]
-        dispatch(conn, action, registry, repo, id)
+        dispatch(conn, ctx.action, registry, repo, ctx.resource)
 
       {:error, oci_error_status, details} ->
         error_resp(conn, oci_error_status, details)
@@ -341,8 +332,7 @@ defmodule OCI.Plug.Handler do
     |> halt()
   end
 
-  defp validate_repo_name(conn, rest) do
-    repo = rest |> Enum.reverse() |> Enum.join("/")
+  defp validate_repo_name(conn, repo) do
     registry = conn.private[:oci_registry]
 
     case Registry.validate_name(registry, repo) do

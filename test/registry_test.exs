@@ -14,8 +14,8 @@ defmodule OCI.RegistryTest do
       registry = registry_with_user("myuser", "mypass")
 
       authorization = "Basic #{Base.encode64("myuser:mypass")}"
-      assert {:ok, ctx} = OCI.Registry.authenticate(registry, authorization)
-      assert ctx.subject == "myuser"
+      assert {:ok, subject} = OCI.Registry.authenticate(registry, authorization)
+      assert subject == "myuser"
     end
 
     test "returns {:error, :UNAUTHORIZED} when authentication is unsuccessful" do

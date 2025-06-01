@@ -34,7 +34,8 @@ defmodule OCI.Auth.Static do
                 if Enum.find(auth.users, fn user ->
                      user.username == username && user.password == password
                    end) do
-                  {:ok, %{subject: username}}
+                  subject = username
+                  {:ok, subject}
                 else
                   {:error, :UNAUTHORIZED, "Invalid username or password"}
                 end

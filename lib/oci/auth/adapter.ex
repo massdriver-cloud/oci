@@ -32,22 +32,23 @@ defmodule OCI.Auth.Adapter do
   @type credentials_t :: String.t()
 
   @typedoc """
-  Represents the context of the authentication request.
-  This can be used to store authentication information or other relevant data.
+  The subject to set on the request context to be used for authorization.
+
+  Available in: `conn.assigns[:oci_ctx]`
   """
-  @type ctx_t :: map()
+  @type subject_t :: any()
 
   @type error_details_t :: map() | String.t() | nil
 
   @callback init(config :: map()) :: {:ok, t()} | {:error, term()}
 
   @callback authenticate(auth_strategy :: t(), authorization :: authorization_t()) ::
-              {:ok, context :: ctx_t()}
+              {:ok, subject :: subject_t()}
               | {:error, error_type :: atom(), details :: error_details_t()}
 
   @callback authorize(
               auth_strategy :: t(),
-              context :: ctx_t(),
+              context :: OCI.Context.t(),
               action :: atom(),
               resource :: any()
             ) ::

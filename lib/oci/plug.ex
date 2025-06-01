@@ -20,14 +20,38 @@ defmodule OCI.Plug do
     %{registry: registry}
   end
 
-  @impl true
-  def call(%{script_name: [@api_version]} = conn, %{registry: registry}) do
-    # Reverse the path info, and the last parts after the known API path portions is the repo name.
-    # V2 is plucked off by the "script_name" when scope/forwarding from Phoenix
+  def set_context(conn) do
     segments = conn.path_info |> Enum.reverse()
 
+    {rest, action, id} =
+      case segments do
+        [] -> {[], :ping, nil}
+        ["list", "tags" | rest] -> {rest, :tags_list, nil}
+        ["uploads", "blobs" | rest] -> {rest, :blobs_uploads, nil}
+        [uuid, "uploads", "blobs" | rest] -> {rest, :blobs_uploads, uuid}
+        [digest, "blobs" | rest] -> {rest, :blobs, digest}
+        [reference, "manifests" | rest] -> {rest, :manifests, reference}
+      end
+
+    # Reverse the path info, and the last parts after the known API path portions is the repo name.
+    # V2 is plucked off by the "script_name" when scope/forwarding from Phoenix
+    repo = rest |> Enum.reverse() |> Enum.join("/")
+
+    ctx = %OCI.Context{
+      subject: nil,
+      action: action,
+      resource: id,
+      repo: repo
+    }
+
+    conn |> assign(:oci_ctx, ctx)
+  end
+
+  @impl true
+  def call(%{script_name: [@api_version]} = conn, %{registry: registry}) do
     conn =
       conn
+      |> set_context()
       |> ensure_request_id()
       |> put_private(:oci_registry, registry)
       |> authenticate()
@@ -40,7 +64,7 @@ defmodule OCI.Plug do
         # trigger twice outside of auth because conformance tries unauthed, then authed.
         conn
         |> OCI.Inspector.inspect("before:handle_request/1")
-        |> OCI.Plug.Handler.handle(segments)
+        |> OCI.Plug.Handler.handle()
 
       {:error, :UNAUTHORIZED} ->
         challenge_resp(conn)
@@ -92,12 +116,12 @@ defmodule OCI.Plug do
 
       authorization ->
         case Registry.authenticate(registry, authorization) do
-          {:ok, ctx} ->
-            conn
-            |> assign(:oci_ctx, ctx)
+          {:ok, subject} ->
+            updated_ctx = %{conn.assigns[:oci_ctx] | subject: subject}
+            conn |> assign(:oci_ctx, updated_ctx)
 
-          {:error, _error_type, _details} ->
-            challenge_resp(conn)
+          {:error, reason, details} ->
+            error_resp(conn, reason, details)
         end
     end
   end
