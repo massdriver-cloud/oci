@@ -1,51 +1,46 @@
 defmodule OCI.Auth.Adapter do
   @moduledoc """
   Adapter for authenticating requests to the OCI registry.
-
-  # TODO: back this out to an adapter
-  # TODO: integrate into registry
   """
 
-  @doc """
-  Authenticate the given credentials using the specified authentication scheme.
+  @typedoc """
+  Represents the authorization header value.
+  This is the full authorization header value, including the scheme and credentials.
   """
-  @spec authenticate(authorization :: String.t()) :: {:ok, any()} | {:error, any()}
-  def authenticate(authorization) do
-    [scheme, credentials_enc] = String.split(authorization, " ", parts: 2)
+  @type authorization_t :: String.t()
 
-    case scheme do
-      "Basic" ->
-        case Base.decode64(credentials_enc) do
-          {:ok, credentials} ->
-            # TODO: dont hard code auth :P
-            case String.split(credentials, ":") do
-              ["myuser", "mypass"] ->
-                {:ok, %{subject: "myuser"}}
+  @typedoc """
+  Represents the authentication scheme type.
+  Currently supports "Basic" and "Bearer" authentication methods.
+  """
+  @type scheme_t :: String.t()
 
-              _ ->
-                {:error, :UNAUTHORIZED}
-            end
+  @typedoc """
+  Represents encoded credentials string.
+  For Basic auth, this is the base64 encoded username:password string.
+  For Bearer auth, this is the encoded token string.
+  """
+  @type credentials_enc_t :: String.t()
 
-          :error ->
-            {:error, :UNAUTHORIZED}
-        end
+  @typedoc """
+  Represents decoded credentials string.
+  For Basic auth, this is the raw username:password string.
+  For Bearer auth, this is the decoded token string.
+  """
+  @type credentials_t :: String.t()
 
-      _ ->
-        # TODO: expand all errors to be able to include details
-        # details = %{"scheme" => scheme, "reason" => "Unsupported authentication scheme"}
-        {:error, :UNSUPPORTED}
-    end
-  end
+  @typedoc """
+  Represents the context of the authentication request.
+  This can be used to store authentication information or other relevant data.
+  """
+  @type ctx_t :: map()
 
-  def authorize(%{subject: "myuser"}, _action, _resource) do
-    :ok
-  end
+  @type t :: struct()
 
-  def authorize(_ctx, _action, _resource) do
-    {:error, :UNAUTHORIZED}
-  end
+  @callback init(config :: map()) :: {:ok, t()} | {:error, term()}
 
-  def challenge(registry) do
-    {"Basic", ~s(realm="#{registry.realm}")}
-  end
+  @callback authenticate(authorization :: authorization_t()) :: {:ok, any()} | {:error, any()}
+  @callback authorize(ctx :: ctx_t(), action :: atom(), resource :: any()) ::
+              :ok | {:error, any()}
+  @callback challenge(registry :: any()) :: {String.t(), String.t()}
 end

@@ -2,9 +2,13 @@ import Config
 config :logger, level: :info
 
 config :oci,
-  storage: [
+  auth: %{
+    adapter: OCI.Auth.StaticAuth,
+    config: %{}
+  },
+  storage: %{
     adapter: OCI.Storage.Local,
-    config: [
+    config: %{
       path: "./tmp/"
-    ]
-  ]
+    }
+  }

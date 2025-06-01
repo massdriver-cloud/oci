@@ -38,8 +38,8 @@ defmodule OCI.Storage.Local do
   """
   @impl true
   def init(opts) do
-    path = Keyword.fetch!(opts, :path)
-    %__MODULE__{path: path}
+    path = Map.fetch!(opts, :path)
+    {:ok, %__MODULE__{path: path}}
   end
 
   @impl true

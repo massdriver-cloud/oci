@@ -8,32 +8,11 @@ defmodule OCI.Plug do
   alias OCI.Registry
 
   @api_version OCI.Registry.api_version()
+  @auth_stub OCI.Auth.StaticAuth
 
   @impl true
   def init(opts) do
-    registry = Keyword.get(opts, :registry)
-
-    registry =
-      if registry do
-        registry
-      else
-        # Try to get storage config from application config
-        case Application.get_env(:oci, :storage) do
-          nil ->
-            raise "No registry provided and no storage config found in application config"
-
-          storage_config ->
-            adapter = Keyword.get(storage_config, :adapter)
-            config = Keyword.get(storage_config, :config)
-
-            if adapter && config do
-              OCI.Registry.init(storage: adapter.init(config))
-            else
-              raise "Invalid storage config in application config"
-            end
-        end
-      end
-
+    registry = Keyword.fetch!(opts, :registry)
     %{registry: registry}
   end
 
@@ -105,7 +84,7 @@ defmodule OCI.Plug do
 
       authorization ->
         authorization
-        |> OCI.Auth.Adapter.authenticate()
+        |> @auth_stub.authenticate()
         |> case do
           {:ok, ctx} ->
             conn
@@ -118,8 +97,8 @@ defmodule OCI.Plug do
   end
 
   defp authorize(%{assigns: %{oci_ctx: ctx}}) do
-    # TODO: infer and pass authorization info
-    OCI.Auth.Adapter.authorize(ctx, "TODO:ACTION", "TODO:RESOURCE")
+    # TODO: infer and pass authorization info, pass repo as well
+    @auth_stub.authorize(ctx, "TODO:ACTION", "TODO:RESOURCE")
   end
 
   defp authorize(_) do
@@ -128,7 +107,7 @@ defmodule OCI.Plug do
 
   defp challenge(conn) do
     registry = conn.private[:oci_registry]
-    {scheme, auth_param} = OCI.Auth.Adapter.challenge(registry)
+    {scheme, auth_param} = @auth_stub.challenge(registry)
 
     conn
     |> put_resp_header("www-authenticate", "#{scheme} #{auth_param}")
