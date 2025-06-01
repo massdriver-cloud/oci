@@ -95,7 +95,7 @@ defmodule OCI.Storage.Adapter do
     - content_range: The range of bytes being uploaded (e.g. "0-1023")
 
   ## Returns
-    - `{:ok, range}` indicating the current range of uploaded bytes
+    - `{:ok, range}` indicating the current range of **total**uploaded bytes
     - `{:error, reason}` if the upload fails
   """
   @callback upload_chunk(

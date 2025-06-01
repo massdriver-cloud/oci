@@ -36,27 +36,27 @@ defmodule OCI.Auth.Static do
                    end) do
                   {:ok, %{subject: username}}
                 else
-                  {:error, :UNAUTHORIZED}
+                  {:error, :UNAUTHORIZED, "Invalid username or password"}
                 end
 
               _ ->
-                {:error, :UNAUTHORIZED}
+                {:error, :UNAUTHORIZED,
+                 "Invalid authorization format, should be username:password"}
             end
 
           :error ->
-            {:error, :UNAUTHORIZED}
+            {:error, :UNAUTHORIZED,
+             "Failed to decode authorization, should be base64 encoded username:password"}
         end
 
-      _ ->
-        # TODO: expand all errors to be able to include details
-        # details = %{"scheme" => scheme, "reason" => "Unsupported authentication scheme"}
-        {:error, :UNSUPPORTED}
+      _other ->
+        {:error, :UNSUPPORTED, "Unsupported authentication scheme: #{scheme}"}
     end
   end
 
   @impl true
-  def authorize(_auth, %{subject: "myuser"}, _action, _resource) do
-    # TODO: let "myuser
+  def authorize(_auth, _ctx, _action, _resource) do
+    # TODO: add repos permissions to static and authorize here
     :ok
   end
 

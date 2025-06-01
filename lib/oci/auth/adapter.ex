@@ -3,6 +3,8 @@ defmodule OCI.Auth.Adapter do
   Adapter for authenticating requests to the OCI registry.
   """
 
+  @type t :: struct()
+
   @typedoc """
   Represents the authorization header value.
   This is the full authorization header value, including the scheme and credentials.
@@ -35,15 +37,18 @@ defmodule OCI.Auth.Adapter do
   """
   @type ctx_t :: map()
 
-  @type t :: struct()
-
   @callback init(config :: map()) :: {:ok, t()} | {:error, term()}
 
   @callback authenticate(auth_strategy :: t(), authorization :: authorization_t()) ::
-              {:ok, any()} | {:error, any()}
+              {:ok, context :: ctx_t()} | {:error, error_type :: atom(), details :: any()}
 
-  @callback authorize(auth_strategy :: t(), ctx :: ctx_t(), action :: atom(), resource :: any()) ::
-              :ok | {:error, any()}
+  @callback authorize(
+              auth_strategy :: t(),
+              context :: ctx_t(),
+              action :: atom(),
+              resource :: any()
+            ) ::
+              :ok | {:error, error_type :: atom(), details :: any()}
 
   @callback challenge(registry :: OCI.Registry.t()) :: {String.t(), String.t()}
 end

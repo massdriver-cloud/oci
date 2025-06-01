@@ -216,7 +216,10 @@ defmodule OCI.Registry do
   end
 
   def head_manifest(%{storage: storage}, repo, reference) do
-    storage.__struct__.head_manifest(storage, repo, reference)
+    with {:ok, digest, size} <- storage.__struct__.head_manifest(storage, repo, reference) do
+      content_type = "application/vnd.oci.image.manifest.v1+json"
+      {:ok, content_type, digest, size}
+    end
   end
 
   def list_tags(%{storage: storage}, repo, pagination) do

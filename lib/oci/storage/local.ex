@@ -72,8 +72,6 @@ defmodule OCI.Storage.Local do
       |> combine_chunks()
       |> OCI.Registry.calculate_range(0)
 
-    # TODO: move this note to the adapter
-    # return the total range of the upload
     {:ok, total_range}
   end
 
@@ -280,8 +278,7 @@ defmodule OCI.Storage.Local do
       if String.starts_with?(reference, "sha256:") and reference != digest do
         {:error, :MANIFEST_UNKNOWN}
       else
-        # TODO: not sure the storage adapter should handle this type
-        {:ok, "application/vnd.oci.image.manifest.v1+json", digest, byte_size(manifest_json)}
+        {:ok, digest, byte_size(manifest_json)}
       end
     else
       {:error, :MANIFEST_UNKNOWN}

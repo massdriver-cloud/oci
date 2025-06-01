@@ -22,7 +22,7 @@ defmodule OCI.RegistryTest do
       registry = registry_with_user("myuser", "mypass")
 
       authorization = "Basic #{Base.encode64("myuser:wrongpass")}"
-      assert {:error, :UNAUTHORIZED} = OCI.Registry.authenticate(registry, authorization)
+      assert {:error, :UNAUTHORIZED, _} = OCI.Registry.authenticate(registry, authorization)
     end
   end
 

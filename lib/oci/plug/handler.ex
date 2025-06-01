@@ -322,7 +322,6 @@ defmodule OCI.Plug.Handler do
     method = conn.method
     path = conn.request_path
 
-    # # TODO: should this a 404?
     error_resp(conn, :UNSUPPORTED, "Unsupported [#{method}] #{path}")
   end
 
