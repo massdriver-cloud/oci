@@ -39,11 +39,17 @@ defmodule OCI.Registry do
   def api_version, do: "v2"
 
   def from_app_env() do
-    auth_cfg = Application.get_env(:oci, :auth)
+    oci_cfg = Application.get_all_env(:oci)
+
+    auth_cfg = Keyword.fetch!(oci_cfg, :auth)
     {:ok, auth} = auth_cfg.adapter.init(auth_cfg.config)
-    storage_cfg = Application.get_env(:oci, :storage)
+
+    storage_cfg = Keyword.fetch!(oci_cfg, :storage)
     {:ok, storage} = storage_cfg.adapter.init(storage_cfg.config)
-    {:ok, registry} = OCI.Registry.init(storage: storage, auth: auth)
+
+    registry_opts = Keyword.merge(oci_cfg, auth: auth, storage: storage)
+
+    {:ok, registry} = OCI.Registry.init(registry_opts)
     registry
   end
 
