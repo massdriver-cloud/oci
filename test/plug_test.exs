@@ -8,8 +8,6 @@ defmodule OCI.PlugTest do
   import Plug.Test
   import OCI.PlugTest.Helpers
 
-  alias OCI.Registry
-
   setup do
     opts = plug_opts()
 
@@ -30,7 +28,16 @@ defmodule OCI.PlugTest do
 
   defp plug_opts() do
     {:ok, tmp_path} = Temp.path()
-    registry = Registry.init(storage: OCI.Storage.Local.init(path: tmp_path))
+    {:ok, storage} = OCI.Storage.Local.init(%{path: tmp_path})
+
+    {:ok, auth} =
+      OCI.Auth.Static.init(%{
+        users: [
+          %{username: "myuser", password: "mypass"}
+        ]
+      })
+
+    {:ok, registry} = OCI.Registry.init(storage: storage, auth: auth)
     OCI.Plug.init(registry: registry)
   end
 

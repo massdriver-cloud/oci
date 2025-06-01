@@ -46,7 +46,7 @@ defmodule OCI.Storage.Adapter do
   ## Returns
     - A new storage adapter instance
   """
-  @callback init(config :: Keyword.t()) :: t()
+  @callback init(config :: map()) :: {:ok, t()} | {:error, term()}
 
   @doc """
   Initiates a blob upload session.

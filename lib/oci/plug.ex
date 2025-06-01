@@ -11,27 +11,10 @@ defmodule OCI.Plug do
 
   @impl true
   def init(opts) do
-    registry = Keyword.get(opts, :registry)
-
     registry =
-      if registry do
-        registry
-      else
-        # Try to get storage config from application config
-        case Application.get_env(:oci, :storage) do
-          nil ->
-            raise "No registry provided and no storage config found in application config"
-
-          storage_config ->
-            adapter = Keyword.get(storage_config, :adapter)
-            config = Keyword.get(storage_config, :config)
-
-            if adapter && config do
-              OCI.Registry.init(storage: adapter.init(config))
-            else
-              raise "Invalid storage config in application config"
-            end
-        end
+      case Keyword.get(opts, :registry) do
+        nil -> OCI.Registry.from_app_env()
+        registry -> registry
       end
 
     %{registry: registry}
@@ -95,7 +78,7 @@ defmodule OCI.Plug do
     end
   end
 
-  def authenticate(conn) do
+  def authenticate(%{private: %{oci_registry: registry}} = conn) do
     conn
     |> Plug.Conn.get_req_header("authorization")
     |> List.first()
@@ -104,9 +87,7 @@ defmodule OCI.Plug do
         conn
 
       authorization ->
-        authorization
-        |> OCI.Auth.Adapter.authenticate()
-        |> case do
+        case Registry.authenticate(registry, authorization) do
           {:ok, ctx} ->
             conn
             |> assign(:oci_ctx, ctx)
@@ -117,9 +98,10 @@ defmodule OCI.Plug do
     end
   end
 
-  defp authorize(%{assigns: %{oci_ctx: ctx}}) do
-    # TODO: infer and pass authorization info
-    OCI.Auth.Adapter.authorize(ctx, "TODO:ACTION", "TODO:RESOURCE")
+  defp authorize(%{private: %{oci_registry: registry}, assigns: %{oci_ctx: ctx}}) do
+    # TODO: infer and pass authorization info, pass repo as well
+    # TODO: pass auth adapter to adapter functions and make sure auth tests fail when i change password to $myp$$$ or something.
+    Registry.authorize(registry, ctx, "TODO:ACTION", "TODO:RESOURCE")
   end
 
   defp authorize(_) do
@@ -128,7 +110,7 @@ defmodule OCI.Plug do
 
   defp challenge(conn) do
     registry = conn.private[:oci_registry]
-    {scheme, auth_param} = OCI.Auth.Adapter.challenge(registry)
+    {scheme, auth_param} = Registry.challenge(registry)
 
     conn
     |> put_resp_header("www-authenticate", "#{scheme} #{auth_param}")

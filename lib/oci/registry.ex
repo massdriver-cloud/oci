@@ -4,8 +4,6 @@ defmodule OCI.Registry do
   like validating manifests and tags.
   """
 
-  @behaviour OCI.Storage.Adapter
-
   use TypedStruct
 
   @repo_name_pattern ~r/^([a-z0-9]+(?:[._-][a-z0-9]+)*)(\/[a-z0-9]+(?:[._-][a-z0-9]+)*)*$/
@@ -13,6 +11,7 @@ defmodule OCI.Registry do
   typedstruct do
     field :realm, String.t(), enforce: false, default: "Registry"
     field :storage, module(), enforce: true
+    field :auth, module(), enforce: true
     field :max_manifest_size, pos_integer(), enforce: false, default: 4 * 1024 * 1024
     field :max_blob_upload_chunk_size, pos_integer(), enforce: false, default: 10 * 1024 * 1024
     field :enable_blob_deletion, boolean(), enforce: false, default: true
@@ -39,6 +38,27 @@ defmodule OCI.Registry do
   @spec api_version() :: String.t()
   def api_version, do: "v2"
 
+  def from_app_env() do
+    auth_cfg = Application.get_env(:oci, :auth)
+    {:ok, auth} = auth_cfg.adapter.init(auth_cfg.config)
+    storage_cfg = Application.get_env(:oci, :storage)
+    {:ok, storage} = storage_cfg.adapter.init(storage_cfg.config)
+    {:ok, registry} = OCI.Registry.init(storage: storage, auth: auth)
+    registry
+  end
+
+  def authenticate(%{auth: auth}, authorization) do
+    adapter(auth).authenticate(auth, authorization)
+  end
+
+  def authorize(%{auth: auth}, ctx, action, resource) do
+    adapter(auth).authorize(auth, ctx, action, resource)
+  end
+
+  def challenge(%{auth: auth} = registry) do
+    adapter(auth).challenge(registry)
+  end
+
   def validate_name(registry, repo) do
     if Regex.match?(registry.repo_name_pattern, repo) do
       :ok
@@ -51,9 +71,10 @@ defmodule OCI.Registry do
   @doc """
   Initializes a new registry instance with the given configuration.
   """
-  def init(opts) do
-    storage = Keyword.fetch!(opts, :storage)
-    %__MODULE__{storage: storage}
+  def init(config) do
+    storage = Keyword.fetch!(config, :storage)
+    auth = Keyword.fetch!(config, :auth)
+    {:ok, %__MODULE__{storage: storage, auth: auth}}
   end
 
   def repo_exists?(%{storage: storage}, repo) do
