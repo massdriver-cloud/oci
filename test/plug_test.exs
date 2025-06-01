@@ -8,8 +8,6 @@ defmodule OCI.PlugTest do
   import Plug.Test
   import OCI.PlugTest.Helpers
 
-  alias OCI.Registry
-
   setup do
     opts = plug_opts()
 

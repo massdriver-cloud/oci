@@ -12,7 +12,12 @@ defmodule OCI.Plug do
 
   @impl true
   def init(opts) do
-    registry = Keyword.fetch!(opts, :registry)
+    registry =
+      case Keyword.get(opts, :registry) do
+        nil -> OCI.Registry.from_app_env()
+        registry -> registry
+      end
+
     %{registry: registry}
   end
 

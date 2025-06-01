@@ -38,6 +38,15 @@ defmodule OCI.Registry do
   @spec api_version() :: String.t()
   def api_version, do: "v2"
 
+  def from_app_env() do
+    auth_cfg = Application.get_env(:oci, :auth)
+    {:ok, auth} = auth_cfg.adapter.init(auth_cfg.config)
+    storage_cfg = Application.get_env(:oci, :storage)
+    {:ok, storage} = storage_cfg.adapter.init(storage_cfg.config)
+    {:ok, registry} = OCI.Registry.init(storage: storage, auth: auth)
+    registry
+  end
+
   def validate_name(registry, repo) do
     if Regex.match?(registry.repo_name_pattern, repo) do
       :ok
