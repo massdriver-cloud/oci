@@ -30,7 +30,6 @@ defmodule OCI.Plug.Handler do
     case validate_repo_name(conn, rest) do
       {:ok, repo} ->
         registry = conn.private[:oci_registry]
-
         dispatch(conn, action, registry, repo, id)
 
       {:error, oci_error_status, details} ->

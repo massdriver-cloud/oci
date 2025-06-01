@@ -98,9 +98,17 @@ defmodule OCI.Plug do
     end
   end
 
+  #
+
   defp authorize(%{private: %{oci_registry: registry}, assigns: %{oci_ctx: ctx}}) do
     # TODO: infer and pass authorization info, pass repo as well
-    # TODO: pass auth adapter to adapter functions and make sure auth tests fail when i change password to $myp$$$ or something.
+
+    # TODO take and return a conn so this can be all plugs above
+    # if ok, return the conn w/ . updated context (authorized action, authorized resource id if present)
+    # else add an authorized error and halt DENIED
+
+    # SHOULD authetnicate return a
+
     Registry.authorize(registry, ctx, "TODO:ACTION", "TODO:RESOURCE")
   end
 
