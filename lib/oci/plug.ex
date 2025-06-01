@@ -22,26 +22,23 @@ defmodule OCI.Plug do
 
   @impl true
   def call(%{script_name: [@api_version]} = conn, %{registry: registry}) do
+    # Reverse the path info, and the last parts after the known API path portions is the repo name.
+    # V2 is plucked off by the "script_name" when scope/forwarding from Phoenix
+    segments = conn.path_info |> Enum.reverse()
+
     conn =
       conn
       |> ensure_request_id()
       |> put_private(:oci_registry, registry)
       |> authenticate()
       |> authorize()
+      |> fetch_query_params()
+      |> set_raw_body()
 
     case old_auth(conn) do
       :ok ->
-        max_body_size = max(registry.max_manifest_size, registry.max_blob_upload_chunk_size)
-        {:ok, body, conn} = Plug.Conn.read_body(conn, length: max_body_size)
-
-        # Reverse the path info, and the last parts after the known API path portions is the repo name.
-        # V2 is plucked off by the "script_name" when scope/forwarding from Phoenix
-        segments = conn.path_info |> Enum.reverse()
-
         # TODO: remove the debug inspector and a note about its use.
         conn
-        |> assign(:raw_body, body)
-        |> fetch_query_params()
         |> OCI.Inspector.inspect("before:handle_request/1")
         |> OCI.Plug.Handler.handle(segments)
 
@@ -62,6 +59,12 @@ defmodule OCI.Plug do
     |> put_resp_content_type("application/json")
     |> send_resp(error.http_status, body)
     |> halt()
+  end
+
+  def set_raw_body(%{private: %{oci_registry: registry}} = conn) do
+    max_body_size = max(registry.max_manifest_size, registry.max_blob_upload_chunk_size)
+    {:ok, body, conn} = Plug.Conn.read_body(conn, length: max_body_size)
+    assign(conn, :raw_body, body)
   end
 
   defp ensure_request_id(conn) do
