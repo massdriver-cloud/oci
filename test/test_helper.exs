@@ -16,6 +16,7 @@ Logger.info("🤞 Phoenix endpoint started for conformance tests")
   )
 
 :ok = ConformanceSuite.build(force: true)
+
 ConformanceSuite.generate_report()
 
 {:ok, _} = Application.ensure_all_started(:oci)

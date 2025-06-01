@@ -8,7 +8,6 @@ defmodule OCI.Plug do
   alias OCI.Registry
 
   @api_version OCI.Registry.api_version()
-  @auth_stub OCI.Auth.StaticAuth
 
   @impl true
   def init(opts) do
@@ -79,7 +78,7 @@ defmodule OCI.Plug do
     end
   end
 
-  def authenticate(conn) do
+  def authenticate(%{private: %{oci_registry: registry}} = conn) do
     conn
     |> Plug.Conn.get_req_header("authorization")
     |> List.first()
@@ -88,9 +87,7 @@ defmodule OCI.Plug do
         conn
 
       authorization ->
-        authorization
-        |> @auth_stub.authenticate()
-        |> case do
+        case Registry.authenticate(registry, authorization) do
           {:ok, ctx} ->
             conn
             |> assign(:oci_ctx, ctx)
@@ -101,9 +98,10 @@ defmodule OCI.Plug do
     end
   end
 
-  defp authorize(%{assigns: %{oci_ctx: ctx}}) do
+  defp authorize(%{private: %{oci_registry: registry}, assigns: %{oci_ctx: ctx}}) do
     # TODO: infer and pass authorization info, pass repo as well
-    @auth_stub.authorize(ctx, "TODO:ACTION", "TODO:RESOURCE")
+    # TODO: pass auth adapter to adapter functions and make sure auth tests fail when i change password to $myp$$$ or something.
+    Registry.authorize(registry, ctx, "TODO:ACTION", "TODO:RESOURCE")
   end
 
   defp authorize(_) do
@@ -112,7 +110,7 @@ defmodule OCI.Plug do
 
   defp challenge(conn) do
     registry = conn.private[:oci_registry]
-    {scheme, auth_param} = @auth_stub.challenge(registry)
+    {scheme, auth_param} = Registry.challenge(registry)
 
     conn
     |> put_resp_header("www-authenticate", "#{scheme} #{auth_param}")

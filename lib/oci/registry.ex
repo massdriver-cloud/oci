@@ -47,6 +47,18 @@ defmodule OCI.Registry do
     registry
   end
 
+  def authenticate(%{auth: auth}, authorization) do
+    adapter(auth).authenticate(auth, authorization)
+  end
+
+  def authorize(%{auth: auth}, ctx, action, resource) do
+    adapter(auth).authorize(auth, ctx, action, resource)
+  end
+
+  def challenge(%{auth: auth} = registry) do
+    adapter(auth).challenge(registry)
+  end
+
   def validate_name(registry, repo) do
     if Regex.match?(registry.repo_name_pattern, repo) do
       :ok

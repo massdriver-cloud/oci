@@ -39,8 +39,11 @@ defmodule OCI.Auth.Adapter do
 
   @callback init(config :: map()) :: {:ok, t()} | {:error, term()}
 
-  @callback authenticate(authorization :: authorization_t()) :: {:ok, any()} | {:error, any()}
-  @callback authorize(ctx :: ctx_t(), action :: atom(), resource :: any()) ::
+  @callback authenticate(auth_strategy :: t(), authorization :: authorization_t()) ::
+              {:ok, any()} | {:error, any()}
+
+  @callback authorize(auth_strategy :: t(), ctx :: ctx_t(), action :: atom(), resource :: any()) ::
               :ok | {:error, any()}
-  @callback challenge(registry :: any()) :: {String.t(), String.t()}
+
+  @callback challenge(registry :: OCI.Registry.t()) :: {String.t(), String.t()}
 end
