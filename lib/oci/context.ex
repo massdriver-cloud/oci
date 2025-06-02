@@ -1,4 +1,10 @@
 defmodule OCI.Context do
+  @moduledoc """
+  Context for OCI requests.
+
+  This module is responsible for storing the context of an OCI request.
+  """
+
   use TypedStruct
 
   typedstruct do
