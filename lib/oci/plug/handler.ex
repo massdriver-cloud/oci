@@ -11,6 +11,8 @@ defmodule OCI.Plug.Handler do
   alias OCI.Registry
   alias OCI.Registry.Pagination
 
+  def handle(%{halted: true} = conn), do: conn
+
   def handle(%{assigns: %{oci_ctx: ctx}} = conn) when ctx.endpoint == :ping do
     conn
     |> put_resp_content_type("application/json")

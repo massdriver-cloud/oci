@@ -22,32 +22,16 @@ defmodule OCI.Plug do
 
   @impl true
   def call(%{script_name: [@api_version]} = conn, %{registry: registry}) do
-    conn =
-      conn
-      |> set_context()
-      |> ensure_request_id()
-      |> put_private(:oci_registry, registry)
-      |> authenticate()
-      |> fetch_query_params()
-      |> set_raw_body()
-
-    case authorize(conn) do
-      :ok ->
-        conn
-        |> OCI.Inspector.inspect("before:handle/1")
-        |> OCI.Plug.Handler.handle()
-
-      # |> OCI.Inspector.inspect("after:handle/1")
-
-      {:error, :UNAUTHORIZED} ->
-        challenge_resp(conn)
-
-      {:error, reason} ->
-        error_resp(conn, reason, nil)
-
-      {:error, reason, details} ->
-        error_resp(conn, reason, details)
-    end
+    conn
+    |> set_context()
+    |> ensure_request_id()
+    |> put_private(:oci_registry, registry)
+    |> authenticate()
+    |> fetch_query_params()
+    |> set_raw_body()
+    |> authorize()
+    |> OCI.Inspector.inspect("before:handle/1")
+    |> OCI.Plug.Handler.handle()
   end
 
   def call(conn, _opts) do
@@ -60,8 +44,7 @@ defmodule OCI.Plug do
     |> List.first()
     |> case do
       nil ->
-        # TODO: challenge should be here, not on authorize
-        conn
+        challenge_resp(conn)
 
       authorization ->
         case Registry.authenticate(registry, authorization) do
@@ -77,8 +60,17 @@ defmodule OCI.Plug do
 
   defp authorize(%{halted: true} = conn), do: conn
 
-  defp authorize(%{private: %{oci_registry: registry}, assigns: %{oci_ctx: ctx}}) do
-    Registry.authorize(registry, ctx)
+  defp authorize(%{private: %{oci_registry: registry}, assigns: %{oci_ctx: ctx}} = conn) do
+    case Registry.authorize(registry, ctx) do
+      :ok ->
+        conn
+
+      {:error, reason} ->
+        error_resp(conn, reason, nil)
+
+      {:error, reason, details} ->
+        error_resp(conn, reason, details)
+    end
   end
 
   defp authorize(_) do
