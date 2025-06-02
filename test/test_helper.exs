@@ -10,6 +10,17 @@ Logger.info("🤞 Phoenix endpoint started for conformance tests")
 
 {:ok, _} = Application.ensure_all_started(:oci)
 
+:ok =
+  ConformanceSuite.clone_repo(
+    "https://github.com/coryodaniel/distribution-spec.git",
+    "fix/patch-content-range-requirement-in-02-setup",
+    force: false
+  )
+
+:ok = ConformanceSuite.build(force: true)
+
+ConformanceSuite.generate_report()
+
 # The tests are actually run outside of exunit, but the results are evaluated and printed.
 # Order is forced to make it easier to work through what is off from the conformance spec
 # Since those conformance tests _are_ run in order and depend on each other to build up state.

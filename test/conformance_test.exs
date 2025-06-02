@@ -3,17 +3,6 @@ defmodule OCI.ConformanceTest do
   use ExUnit.Case, async: false
 
   setup_all do
-    :ok =
-      ConformanceSuite.clone_repo(
-        "https://github.com/coryodaniel/distribution-spec.git",
-        "fix/patch-content-range-requirement-in-02-setup",
-        force: false
-      )
-
-    :ok = ConformanceSuite.build(force: true)
-
-    ConformanceSuite.generate_report()
-
     on_exit(fn ->
       config = Application.get_env(:oci, :storage)
       local_path = config[:config][:path]
@@ -22,6 +11,7 @@ defmodule OCI.ConformanceTest do
   end
 
   test "has did run conformance specs" do
+    assert length(ConformanceSuite.failures()) == 0
     assert length(ConformanceSuite.reports()) > 0
   end
 

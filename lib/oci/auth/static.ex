@@ -86,6 +86,8 @@ defmodule OCI.Auth.Static do
       _ ->
         {:error, :DENIED}
     end
+
+    :ok
   end
 
   defp required_action("GET", _), do: "pull"
