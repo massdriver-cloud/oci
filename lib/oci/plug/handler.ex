@@ -329,7 +329,6 @@ defmodule OCI.Plug.Handler do
     conn
     |> put_resp_content_type("application/json")
     |> send_resp(error.http_status, body)
-    |> halt()
   end
 
   defp validate_repo_name(conn, repo) do

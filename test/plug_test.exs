@@ -60,6 +60,15 @@ defmodule OCI.PlugTest do
     end
   end
 
+  describe "challenge" do
+    test "challenges unauthenticated requests", %{conn: conn} do
+      conn = conn |> get("/")
+      assert conn.status == 401
+      header = get_resp_header(conn, "www-authenticate") |> List.first()
+      assert String.starts_with?(header, "Basic")
+    end
+  end
+
   describe "supports various repo name formats" do
     test "one-level naming (nginx)", %{conn: conn} do
       conn = conn |> post("/nginx/blobs/uploads")

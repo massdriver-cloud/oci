@@ -37,6 +37,8 @@ defmodule OCI.Plug do
         |> OCI.Inspector.inspect("before:handle/1")
         |> OCI.Plug.Handler.handle()
 
+      # |> OCI.Inspector.inspect("after:handle/1")
+
       {:error, :UNAUTHORIZED} ->
         challenge_resp(conn)
 
@@ -50,37 +52,6 @@ defmodule OCI.Plug do
 
   def call(conn, _opts) do
     error_resp(conn, :UNSUPPORTED, "OCI Registry must be mounted at /#{Registry.api_version()}")
-  end
-
-  defp error_resp(conn, code, details) do
-    error = OCI.Error.init(code, details)
-    body = %{errors: [error]} |> Jason.encode!()
-
-    conn
-    |> put_resp_content_type("application/json")
-    |> send_resp(error.http_status, body)
-    |> halt()
-  end
-
-  def set_raw_body(%{private: %{oci_registry: registry}} = conn) do
-    max_body_size = max(registry.max_manifest_size, registry.max_blob_upload_chunk_size)
-    {:ok, body, conn} = Plug.Conn.read_body(conn, length: max_body_size)
-    assign(conn, :raw_body, body)
-  end
-
-  defp ensure_request_id(conn) do
-    case get_req_header(conn, "x-request-id") do
-      [] ->
-        id = Base.encode16(:crypto.strong_rand_bytes(12), case: :lower)
-
-        conn
-        |> put_req_header("x-request-id", id)
-        |> put_resp_header("x-request-id", id)
-        |> put_private(:plug_request_id, id)
-
-      [existing_id | _] ->
-        put_private(conn, :plug_request_id, existing_id)
-    end
   end
 
   def authenticate(%{private: %{oci_registry: registry}} = conn) do
@@ -103,6 +74,8 @@ defmodule OCI.Plug do
         end
     end
   end
+
+  defp authorize(%{halted: true} = conn), do: conn
 
   defp authorize(%{private: %{oci_registry: registry}, assigns: %{oci_ctx: ctx}}) do
     Registry.authorize(registry, ctx)
@@ -148,5 +121,39 @@ defmodule OCI.Plug do
     }
 
     conn |> assign(:oci_ctx, ctx)
+  end
+
+  defp error_resp(conn, code, details) do
+    error = OCI.Error.init(code, details)
+    body = %{errors: [error]} |> Jason.encode!()
+
+    conn
+    |> put_resp_content_type("application/json")
+    |> send_resp(error.http_status, body)
+    |> halt()
+  end
+
+  # Don't bother reading the body if we're already halted
+  defp set_raw_body(%{halted: true} = conn), do: conn
+
+  defp set_raw_body(%{private: %{oci_registry: registry}} = conn) do
+    max_body_size = max(registry.max_manifest_size, registry.max_blob_upload_chunk_size)
+    {:ok, body, conn} = Plug.Conn.read_body(conn, length: max_body_size)
+    assign(conn, :raw_body, body)
+  end
+
+  defp ensure_request_id(conn) do
+    case get_req_header(conn, "x-request-id") do
+      [] ->
+        id = Base.encode16(:crypto.strong_rand_bytes(12), case: :lower)
+
+        conn
+        |> put_req_header("x-request-id", id)
+        |> put_resp_header("x-request-id", id)
+        |> put_private(:plug_request_id, id)
+
+      [existing_id | _] ->
+        put_private(conn, :plug_request_id, existing_id)
+    end
   end
 end
