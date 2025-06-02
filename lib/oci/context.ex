@@ -4,7 +4,8 @@ defmodule OCI.Context do
   typedstruct do
     field :repo, String.t()
     field :subject, String.t()
-    field :action, atom()
+    field :method, String.t()
+    field :endpoint, atom()
     field :resource, String.t()
   end
 end

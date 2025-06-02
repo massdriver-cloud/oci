@@ -30,10 +30,22 @@ defmodule OCI.PlugTest do
     {:ok, tmp_path} = Temp.path()
     {:ok, storage} = OCI.Storage.Local.init(%{path: tmp_path})
 
+    user = %OCI.Auth.Static.User{
+      username: "myuser",
+      password: "mypass",
+      permissions: %{
+        "myimage" => ["pull", "push"],
+        "nginx" => ["pull", "push"],
+        "hexpm/elixir" => ["pull", "push"],
+        "big-org/big-team/big-project" => ["pull", "push"],
+        "nosinglelevelnames" => ["pull", "push"]
+      }
+    }
+
     {:ok, auth} =
       OCI.Auth.Static.init(%{
         users: [
-          %{username: "myuser", password: "mypass"}
+          user
         ]
       })
 

@@ -11,7 +11,7 @@ defmodule OCI.Plug.Handler do
   alias OCI.Registry
   alias OCI.Registry.Pagination
 
-  def handle(%{assigns: %{oci_ctx: ctx}} = conn) when ctx.action == :ping do
+  def handle(%{assigns: %{oci_ctx: ctx}} = conn) when ctx.endpoint == :ping do
     conn
     |> put_resp_content_type("application/json")
     |> send_resp(200, "{}")
@@ -21,7 +21,7 @@ defmodule OCI.Plug.Handler do
     case validate_repo_name(conn, ctx.repo) do
       {:ok, repo} ->
         registry = conn.private[:oci_registry]
-        dispatch(conn, ctx.action, registry, repo, ctx.resource)
+        dispatch(conn, ctx.endpoint, registry, repo, ctx.resource)
 
       {:error, oci_error_status, details} ->
         error_resp(conn, oci_error_status, details)
@@ -308,7 +308,7 @@ defmodule OCI.Plug.Handler do
     end
   end
 
-  def dispatch(conn, _action, _registry, _repo, _id) do
+  def dispatch(conn, _endpoint, _registry, _repo, _id) do
     method = conn.method
     path = conn.request_path
 

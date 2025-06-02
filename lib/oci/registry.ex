@@ -57,14 +57,18 @@ defmodule OCI.Registry do
     adapter(auth).authenticate(auth, authorization)
   end
 
-  def authorize(%{auth: auth}, ctx, action, resource) do
-    adapter(auth).authorize(auth, ctx, action, resource)
+  def authorize(%{auth: auth}, %OCI.Context{} = ctx) do
+    adapter(auth).authorize(auth, ctx)
   end
 
   def challenge(%{auth: auth} = registry) do
     adapter(auth).challenge(registry)
   end
 
+  @spec validate_name(
+          atom() | %{:repo_name_pattern => Regex.t(), optional(any()) => any()},
+          binary()
+        ) :: :ok | {:error, :NAME_INVALID, <<_::64, _::_*8>>}
   def validate_name(registry, repo) do
     if Regex.match?(registry.repo_name_pattern, repo) do
       :ok

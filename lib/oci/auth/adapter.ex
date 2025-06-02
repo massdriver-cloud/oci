@@ -48,9 +48,7 @@ defmodule OCI.Auth.Adapter do
 
   @callback authorize(
               auth_strategy :: t(),
-              context :: OCI.Context.t(),
-              action :: atom(),
-              resource :: any()
+              context :: OCI.Context.t()
             ) ::
               :ok | {:error, error_type :: atom(), details :: error_details_t()}
 

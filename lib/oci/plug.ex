@@ -20,33 +20,6 @@ defmodule OCI.Plug do
     %{registry: registry}
   end
 
-  def set_context(conn) do
-    segments = conn.path_info |> Enum.reverse()
-
-    {rest, action, id} =
-      case segments do
-        [] -> {[], :ping, nil}
-        ["list", "tags" | rest] -> {rest, :tags_list, nil}
-        ["uploads", "blobs" | rest] -> {rest, :blobs_uploads, nil}
-        [uuid, "uploads", "blobs" | rest] -> {rest, :blobs_uploads, uuid}
-        [digest, "blobs" | rest] -> {rest, :blobs, digest}
-        [reference, "manifests" | rest] -> {rest, :manifests, reference}
-      end
-
-    # Reverse the path info, and the last parts after the known API path portions is the repo name.
-    # V2 is plucked off by the "script_name" when scope/forwarding from Phoenix
-    repo = rest |> Enum.reverse() |> Enum.join("/")
-
-    ctx = %OCI.Context{
-      subject: nil,
-      action: action,
-      resource: id,
-      repo: repo
-    }
-
-    conn |> assign(:oci_ctx, ctx)
-  end
-
   @impl true
   def call(%{script_name: [@api_version]} = conn, %{registry: registry}) do
     conn =
@@ -60,14 +33,18 @@ defmodule OCI.Plug do
 
     case authorize(conn) do
       :ok ->
-        # TODO: remove the debug inspector and a note about its use; with conformance, it will always
-        # trigger twice outside of auth because conformance tries unauthed, then authed.
         conn
-        |> OCI.Inspector.inspect("before:handle_request/1")
+        |> OCI.Inspector.inspect("before:handle/1")
         |> OCI.Plug.Handler.handle()
 
       {:error, :UNAUTHORIZED} ->
         challenge_resp(conn)
+
+      {:error, reason} ->
+        error_resp(conn, reason, nil)
+
+      {:error, reason, details} ->
+        error_resp(conn, reason, details)
     end
   end
 
@@ -127,11 +104,7 @@ defmodule OCI.Plug do
   end
 
   defp authorize(%{private: %{oci_registry: registry}, assigns: %{oci_ctx: ctx}}) do
-    # TODO: infer and pass authorization info, pass repo as well
-    action = :noop
-    id = nil
-
-    Registry.authorize(registry, ctx, action, id)
+    Registry.authorize(registry, ctx)
   end
 
   defp authorize(_) do
@@ -146,5 +119,33 @@ defmodule OCI.Plug do
     |> put_resp_header("www-authenticate", "#{scheme} #{auth_param}")
     |> send_resp(401, "")
     |> halt
+  end
+
+  defp set_context(conn) do
+    segments = conn.path_info |> Enum.reverse()
+
+    {rest, endpoint, id} =
+      case segments do
+        [] -> {[], :ping, nil}
+        ["list", "tags" | rest] -> {rest, :tags_list, nil}
+        ["uploads", "blobs" | rest] -> {rest, :blobs_uploads, nil}
+        [uuid, "uploads", "blobs" | rest] -> {rest, :blobs_uploads, uuid}
+        [digest, "blobs" | rest] -> {rest, :blobs, digest}
+        [reference, "manifests" | rest] -> {rest, :manifests, reference}
+      end
+
+    # Reverse the path info, and the last parts after the known API path portions is the repo name.
+    # V2 is plucked off by the "script_name" when scope/forwarding from Phoenix
+    repo = rest |> Enum.reverse() |> Enum.join("/")
+
+    ctx = %OCI.Context{
+      subject: nil,
+      endpoint: endpoint,
+      resource: id,
+      repo: repo,
+      method: conn.method
+    }
+
+    conn |> assign(:oci_ctx, ctx)
   end
 end
