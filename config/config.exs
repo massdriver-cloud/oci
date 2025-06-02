@@ -6,7 +6,14 @@ config :oci,
     adapter: OCI.Auth.Static,
     config: %{
       users: [
-        %{username: "myuser", password: "mypass"}
+        %{
+          username: "myuser",
+          password: "mypass",
+          permissions: %{
+            "myorg/myrepo" => ["pull", "push"],
+            "myorg/other" => ["pull", "push"]
+          }
+        }
       ]
     }
   },

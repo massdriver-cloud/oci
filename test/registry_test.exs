@@ -2,9 +2,17 @@ defmodule OCI.RegistryTest do
   use ExUnit.Case, async: true
   doctest OCI.Registry
 
+  defp tmp_storage() do
+    OCI.Storage.Local.init(%{path: "./tmp/"})
+  end
+
+  defp static_auth(username, password) do
+    OCI.Auth.Static.init(%{users: [%{username: username, password: password}]})
+  end
+
   defp registry_with_user(username, password) do
-    {:ok, storage} = OCI.Storage.Local.init(%{path: "./tmp/"})
-    {:ok, auth} = OCI.Auth.Static.init(%{users: [%{username: username, password: password}]})
+    {:ok, storage} = tmp_storage()
+    {:ok, auth} = static_auth(username, password)
     {:ok, registry} = OCI.Registry.init(storage: storage, auth: auth)
     registry
   end
@@ -14,8 +22,8 @@ defmodule OCI.RegistryTest do
       registry = registry_with_user("myuser", "mypass")
 
       authorization = "Basic #{Base.encode64("myuser:mypass")}"
-      assert {:ok, ctx} = OCI.Registry.authenticate(registry, authorization)
-      assert ctx.subject == "myuser"
+      assert {:ok, subject} = OCI.Registry.authenticate(registry, authorization)
+      assert subject == "myuser"
     end
 
     test "returns {:error, :UNAUTHORIZED} when authentication is unsuccessful" do
@@ -28,15 +36,25 @@ defmodule OCI.RegistryTest do
 
   describe "authorize" do
     test "returns :ok when authorization is successful" do
-      registry = registry_with_user("myuser", "mypass")
+      user = %OCI.Auth.Static.User{
+        username: "myuser",
+        password: "mypass",
+        permissions: %{"myimage" => ["pull", "push"]}
+      }
 
-      assert :ok =
-               OCI.Registry.authorize(
-                 registry,
-                 %{subject: "myuser"},
-                 "TODO:ACTION",
-                 "TODO:RESOURCE"
-               )
+      {:ok, auth} = OCI.Auth.Static.init(%{users: [user]})
+      {:ok, storage} = tmp_storage()
+      {:ok, registry} = OCI.Registry.init(storage: storage, auth: auth)
+
+      ctx = %OCI.Context{
+        repo: "myimage",
+        subject: "myuser",
+        method: "GET",
+        endpoint: :blobs_uploads,
+        resource: "myuser"
+      }
+
+      assert :ok = OCI.Registry.authorize(registry, ctx)
     end
   end
 

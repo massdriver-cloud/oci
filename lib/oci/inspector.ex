@@ -93,12 +93,15 @@ defmodule OCI.Inspector do
 
       digest = conn.query_params["digest"]
 
+      authorization = Plug.Conn.get_req_header(conn, "authorization") |> List.first()
       content_length = Plug.Conn.get_req_header(conn, "content-length") |> List.first()
       content_range = Plug.Conn.get_req_header(conn, "content-range") |> List.first()
 
       Logger.info(
         "🔍 🔍 🔍 OCI Inspector — Runtime State (#{label}):\n" <>
           "\t[oci-conformance-test] (#{test}):\n" <>
+          "\t\tctx:#{Kernel.inspect(conn.assigns[:oci_ctx])}\n" <>
+          "\t\tauthorization:#{authorization}\n" <>
           "\t\t[#{conn.method}] #{conn.request_path}\n" <>
           "\t\tdigest:#{digest} content-length=#{content_length} content-range=#{content_range}\n" <>
           "\t\tpid:#{Kernel.inspect(self())}\n" <>

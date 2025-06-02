@@ -1,6 +1,10 @@
 defmodule OCI.Auth.Static do
   @moduledoc """
-  A static authentication adapter for development.
+  Static auth adapter for OCI.
+
+  This adapter is used to authenticate requests using a static list of users and their permissions.
+
+  Useful for testing and development. You shouldn't use it in production.
   """
 
   @behaviour OCI.Auth.Adapter
@@ -10,6 +14,9 @@ defmodule OCI.Auth.Static do
   typedstruct module: User do
     field :username, String.t(), enforce: true
     field :password, String.t(), enforce: true
+
+    # Map of repo name → list of actions (e.g. ["pull", "push"])
+    field :permissions, %{String.t() => [String.t()]}, default: %{}
   end
 
   typedstruct do
@@ -34,7 +41,8 @@ defmodule OCI.Auth.Static do
                 if Enum.find(auth.users, fn user ->
                      user.username == username && user.password == password
                    end) do
-                  {:ok, %{subject: username}}
+                  subject = username
+                  {:ok, subject}
                 else
                   {:error, :UNAUTHORIZED, "Invalid username or password"}
                 end
@@ -55,18 +63,41 @@ defmodule OCI.Auth.Static do
   end
 
   @impl true
-  def authorize(_auth, _ctx, _action, _resource) do
-    # TODO: add repos permissions to static and authorize here
-    :ok
-  end
-
-  @impl true
-  def authorize(_auth, _ctx, _action, _resource) do
-    {:error, :UNAUTHORIZED}
-  end
-
-  @impl true
   def challenge(registry) do
     {"Basic", ~s(realm="#{registry.realm}")}
   end
+
+  @impl true
+  def authorize(_, %OCI.Context{endpoint: :ping}), do: :ok
+
+  def authorize(%__MODULE__{users: users}, %OCI.Context{} = ctx) do
+    case Enum.find(users, &(&1.username == ctx.subject)) do
+      %{permissions: perms} ->
+        repo_perms = Map.get(perms, ctx.repo, [])
+
+        case required_action(ctx.method, ctx.endpoint) do
+          nil ->
+            {:error, :DENIED}
+
+          action ->
+            if action in repo_perms do
+              :ok
+            else
+              {:error, :DENIED}
+            end
+        end
+
+      _ ->
+        {:error, :DENIED}
+    end
+  end
+
+  defp required_action("GET", _), do: "pull"
+  defp required_action("HEAD", _), do: "pull"
+  defp required_action("PATCH", _), do: "push"
+  defp required_action("POST", _), do: "push"
+  defp required_action("PUT", _), do: "push"
+  defp required_action("DELETE", _), do: "push"
+
+  defp required_action(_, _), do: nil
 end

@@ -30,10 +30,22 @@ defmodule OCI.PlugTest do
     {:ok, tmp_path} = Temp.path()
     {:ok, storage} = OCI.Storage.Local.init(%{path: tmp_path})
 
+    user = %OCI.Auth.Static.User{
+      username: "myuser",
+      password: "mypass",
+      permissions: %{
+        "myimage" => ["pull", "push"],
+        "nginx" => ["pull", "push"],
+        "hexpm/elixir" => ["pull", "push"],
+        "big-org/big-team/big-project" => ["pull", "push"],
+        "nosinglelevelnames" => ["pull", "push"]
+      }
+    }
+
     {:ok, auth} =
       OCI.Auth.Static.init(%{
         users: [
-          %{username: "myuser", password: "mypass"}
+          user
         ]
       })
 
@@ -45,6 +57,22 @@ defmodule OCI.PlugTest do
     test "returns 200 for base endpoint", %{conn: conn} do
       conn = conn |> get("/")
       assert conn.status == 200
+    end
+  end
+
+  describe "challenge" do
+    test "challenges unauthenticated requests", %{conn: conn} do
+      conn =
+        :get
+        |> conn("/")
+        |> Map.put(:script_name, ["v2"])
+        |> Map.put(:assigns, %{oci_opts: plug_opts()})
+
+      conn = conn |> get("/")
+
+      assert conn.status == 401
+      header = get_resp_header(conn, "www-authenticate") |> List.first()
+      assert String.starts_with?(header, "Basic")
     end
   end
 

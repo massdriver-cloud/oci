@@ -11,6 +11,7 @@ defmodule OCI.ConformanceTest do
   end
 
   test "has did run conformance specs" do
+    assert Enum.empty?(ConformanceSuite.failures())
     assert length(ConformanceSuite.reports()) > 0
   end
 
