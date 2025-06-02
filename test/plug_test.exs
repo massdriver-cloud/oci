@@ -62,7 +62,14 @@ defmodule OCI.PlugTest do
 
   describe "challenge" do
     test "challenges unauthenticated requests", %{conn: conn} do
+      conn =
+        :get
+        |> conn("/")
+        |> Map.put(:script_name, ["v2"])
+        |> Map.put(:assigns, %{oci_opts: plug_opts()})
+
       conn = conn |> get("/")
+
       assert conn.status == 401
       header = get_resp_header(conn, "www-authenticate") |> List.first()
       assert String.starts_with?(header, "Basic")

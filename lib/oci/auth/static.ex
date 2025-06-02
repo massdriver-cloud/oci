@@ -1,6 +1,10 @@
 defmodule OCI.Auth.Static do
   @moduledoc """
+  Static auth adapter for OCI.
 
+  This adapter is used to authenticate requests using a static list of users and their permissions.
+
+  Useful for testing and development. You shouldn't use it in production.
   """
 
   @behaviour OCI.Auth.Adapter
@@ -67,43 +71,30 @@ defmodule OCI.Auth.Static do
   def authorize(_, %OCI.Context{endpoint: :ping}), do: :ok
 
   def authorize(%__MODULE__{users: users}, %OCI.Context{} = ctx) do
-    result =
-      case Enum.find(users, &(&1.username == ctx.subject)) do
-        %{permissions: perms} ->
-          repo_perms = Map.get(perms, ctx.repo, [])
+    case Enum.find(users, &(&1.username == ctx.subject)) do
+      %{permissions: perms} ->
+        repo_perms = Map.get(perms, ctx.repo, [])
 
-          case required_action(ctx.method, ctx.endpoint) do
-            nil ->
+        case required_action(ctx.method, ctx.endpoint) do
+          nil ->
+            {:error, :DENIED}
+
+          action ->
+            if action in repo_perms do
+              :ok
+            else
               {:error, :DENIED}
+            end
+        end
 
-            action ->
-              if action in repo_perms do
-                :ok
-              else
-                {:error, :DENIED}
-              end
-          end
-
-        _ ->
-          {:error, :DENIED}
-      end
-
-    # YOU ARE HERE.
-    # You have never been challenging the front end. We need to solve the halt issue, if you
-    # remove the hard coded OK all tests fail now that we have auth, conftest only sends auth if
-    # challenged.
-    # Once thats fixed we should see auth and subject in the inspector. I set the challenge (even tho it double renders)
-    # and i can see the auth get sent over in a follow up request before everything crashes.
-    # if we can fix the halt stuff, i think we can switch back to "result" below and make sure
-    # the conftests auth rbac is set up in config/config.exs
-    # - add an authorized? bool | nil to track authorization
-
-    # result
-    :ok
+      _ ->
+        {:error, :DENIED}
+    end
   end
 
   defp required_action("GET", _), do: "pull"
   defp required_action("HEAD", _), do: "pull"
+  defp required_action("PATCH", _), do: "push"
   defp required_action("POST", _), do: "push"
   defp required_action("PUT", _), do: "push"
   defp required_action("DELETE", _), do: "push"
