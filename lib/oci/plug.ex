@@ -89,6 +89,7 @@ defmodule OCI.Plug do
     |> List.first()
     |> case do
       nil ->
+        # TODO: challenge should be here, not on authorize
         conn
 
       authorization ->

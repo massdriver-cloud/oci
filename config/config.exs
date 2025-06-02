@@ -9,7 +9,10 @@ config :oci,
         %{
           username: "myuser",
           password: "mypass",
-          permissions: %{"myimage" => ["pull", "push"]}
+          permissions: %{
+            "myorg/myrepo" => ["pull", "push"],
+            "myorg/other" => ["pull", "push"]
+          }
         }
       ]
     }
