@@ -23,6 +23,7 @@ defmodule OCI.Plug.Handler do
     case validate_repo_name(conn, ctx.repo) do
       {:ok, repo} ->
         registry = conn.private[:oci_registry]
+        OCI.Inspector.pry(binding())
         dispatch(conn, ctx.endpoint, registry, repo, ctx.resource)
 
       {:error, oci_error_status, details} ->

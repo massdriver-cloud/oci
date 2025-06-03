@@ -40,7 +40,6 @@ defmodule OCI.Plug do
 
     conn
     |> OCI.Plug.Context.call()
-    |> ensure_request_id()
     |> put_private(:oci_registry, registry)
     |> authenticate()
     |> fetch_query_params()
@@ -123,22 +122,5 @@ defmodule OCI.Plug do
     max_body_size = max(registry.max_manifest_size, registry.max_blob_upload_chunk_size)
     {:ok, body, conn} = Plug.Conn.read_body(conn, length: max_body_size)
     assign(conn, :raw_body, body)
-  end
-
-  # TODO: drop this, the inspector doesnt need it anymore, if the end user
-  # needs to see the request id, we can just put the http header and its up to them to set it.
-  defp ensure_request_id(conn) do
-    case get_req_header(conn, "x-request-id") do
-      [] ->
-        id = Base.encode16(:crypto.strong_rand_bytes(12), case: :lower)
-
-        conn
-        |> put_req_header("x-request-id", id)
-        |> put_resp_header("x-request-id", id)
-        |> put_private(:plug_request_id, id)
-
-      [existing_id | _] ->
-        put_private(conn, :plug_request_id, existing_id)
-    end
   end
 end

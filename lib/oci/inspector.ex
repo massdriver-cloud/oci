@@ -28,7 +28,6 @@ defmodule OCI.Inspector do
   def call(conn, %{registry: registry}) do
     conn =
       conn
-      |> ensure_request_id()
       |> put_private(:oci_registry, registry)
       |> authenticate()
       |> OCI.Inspector.inspect("after:authenticate/1")
@@ -60,7 +59,6 @@ defmodule OCI.Inspector do
   Represents the state of an OCI Inspector instance.
   """
   typedstruct do
-    field :request_id, String.t(), enforce: true
     field :test, String.t(), enforce: true
   end
 
@@ -78,7 +76,6 @@ defmodule OCI.Inspector do
 
   ## Examples
 
-      iex> conn = %Plug.Conn{private: %{plug_request_id: "123"}}
       iex> conn = Plug.Conn.put_req_header(conn, "x-oci-conformance-test", "test-name")
       iex> OCI.Inspector.inspect(conn)
       %Plug.Conn{...}
@@ -88,8 +85,7 @@ defmodule OCI.Inspector do
     test = Plug.Conn.get_req_header(conn, "x-oci-conformance-test") |> List.first()
 
     if test do
-      request_id = conn.private[:plug_request_id]
-      Process.put(:oci_inspector, %OCI.Inspector{request_id: request_id, test: test})
+      Process.put(:oci_inspector, %OCI.Inspector{test: test})
 
       log_info(conn, test, label)
     end
@@ -111,8 +107,7 @@ defmodule OCI.Inspector do
         "\t\tauthorization:#{authorization}\n" <>
         "\t\t[#{conn.method}] #{conn.request_path} (status: #{conn.status}, halted: #{conn.halted})\n" <>
         "\t\tdigest:#{digest} content-length=#{content_length} content-range=#{content_range}\n" <>
-        "\t\tpid:#{Kernel.inspect(self())}\n" <>
-        "\t\trequest_id:#{conn.private[:plug_request_id]}"
+        "\t\tpid:#{Kernel.inspect(self())}\n"
 
     Logger.info(msg)
     conn
@@ -140,12 +135,11 @@ defmodule OCI.Inspector do
       nil ->
         nil
 
-      %OCI.Inspector{request_id: request_id, test: test} ->
+      %OCI.Inspector{test: test} ->
         Logger.info(
           "🔧 🔧 🔧 OCI Pry — Runtime State\n" <>
             "\t[oci-conformance-test] (#{test}):\n" <>
-            "\t\tpid:#{Kernel.inspect(self())}\n" <>
-            "\t\trequest_id:#{request_id}"
+            "\t\tpid:#{Kernel.inspect(self())}\n"
         )
 
         # credo:disable-for-next-line
