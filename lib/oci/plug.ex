@@ -46,10 +46,11 @@ defmodule OCI.Plug do
     |> fetch_query_params()
     |> set_raw_body()
     |> authorize()
-    |> OCI.Inspector.log_info(nil, "before:handle/1")
-    # |> OCI.Inspector.inspect("before:handle/1")
+    # |> OCI.Inspector.log_info(nil, "before:handle/1")
+    |> OCI.Inspector.inspect("before:handle/1")
     |> OCI.Plug.Handler.handle()
-    |> OCI.Inspector.log_info(nil, "after:handle/1")
+
+    # |> OCI.Inspector.log_info(nil, "after:handle/1")
   end
 
   def call(conn, _opts) do

@@ -286,14 +286,14 @@ defmodule OCI.Plug.Handler do
 
   def dispatch(%{method: "HEAD"} = conn, :manifests, registry, repo, reference) do
     case Registry.head_manifest(registry, repo, reference) do
-      {:ok, content_type, _digest, size} ->
+      {:ok, content_type, size} ->
         conn
         |> put_resp_header("content-type", content_type)
         |> put_resp_header("content-length", "#{size}")
         |> send_resp(200, "")
 
-      {:error, oci_error_status} ->
-        error_resp(conn, oci_error_status)
+      {:error, oci_error_status, details} ->
+        error_resp(conn, oci_error_status, details)
     end
   end
 

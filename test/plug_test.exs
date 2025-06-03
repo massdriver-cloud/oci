@@ -61,7 +61,7 @@ defmodule OCI.PlugTest do
   end
 
   describe "challenge" do
-    test "challenges unauthenticated requests", %{conn: conn} do
+    test "challenges unauthenticated requests" do
       conn =
         :get
         |> conn("/")

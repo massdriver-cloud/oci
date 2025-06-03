@@ -222,6 +222,7 @@ defmodule OCI.Storage.Local do
       else
         # For tags, read the digest from the tag file and then read the manifest
         if File.exists?(tag_path(storage, repo, reference)) do
+          # TODO: manifest unknown instead of raise.
           digest = File.read!(tag_path(storage, repo, reference))
           digest_path(storage, repo, digest)
         else
@@ -247,34 +248,29 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def head_manifest(%__MODULE__{} = storage, repo, reference) do
-    manifest_path =
-      if String.starts_with?(reference, "sha256:") do
-        digest_path(storage, repo, reference)
-      else
-        # For tags, read the digest from the tag file and then read the manifest
-        if File.exists?(tag_path(storage, repo, reference)) do
-          digest = File.read!(tag_path(storage, repo, reference))
-          digest_path(storage, repo, digest)
-        else
-          nil
-        end
-      end
+  def head_manifest(storage, repo, "sha256:" <> _digest = reference) do
+    path = digest_path(storage, repo, reference)
 
-    if manifest_path && File.exists?(manifest_path) do
-      manifest_json = File.read!(manifest_path)
+    case File.stat(path) do
+      {:ok, stat} ->
+        content_type = "application/vnd.oci.image.manifest.v1+json"
+        {:ok, content_type, stat.size}
 
-      digest =
-        "sha256:" <> OCI.Registry.sha256(manifest_json)
+      _err ->
+        {:error, :MANIFEST_UNKNOWN, "Reference `#{reference}` not found for repo #{repo}"}
+    end
+  end
 
-      # If reference is a digest, verify it matches
-      if String.starts_with?(reference, "sha256:") and reference != digest do
-        {:error, :MANIFEST_UNKNOWN}
-      else
-        {:ok, digest, byte_size(manifest_json)}
-      end
-    else
-      {:error, :MANIFEST_UNKNOWN}
+  def head_manifest(storage, repo, tag) do
+    tag_path = tag_path(storage, repo, tag)
+
+    # Read the digest from the tag file
+    case File.read(tag_path) do
+      {:ok, digest} ->
+        head_manifest(storage, repo, digest)
+
+      _ ->
+        {:error, :MANIFEST_UNKNOWN, "Reference `#{tag}` not found for repo #{repo}"}
     end
   end
 

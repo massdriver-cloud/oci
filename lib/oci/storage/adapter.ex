@@ -180,7 +180,8 @@ defmodule OCI.Storage.Adapter do
               {:ok, String.t(), String.t(), String.t()} | {:error, atom()}
 
   @callback head_manifest(t(), String.t(), String.t()) ::
-              {:ok, String.t(), String.t(), non_neg_integer()} | {:error, atom()}
+              {:ok, content_type :: String.t(), byte_size :: non_neg_integer()}
+              | {:error, atom(), error_details_t}
 
   @callback delete_manifest(t(), String.t(), String.t()) :: :ok | {:error, atom()}
 

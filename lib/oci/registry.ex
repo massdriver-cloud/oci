@@ -188,6 +188,7 @@ defmodule OCI.Registry do
     storage.__struct__.get_blob(storage, repo, digest)
   end
 
+  @spec delete_blob(map(), any(), any()) :: any()
   def delete_blob(%{enable_blob_deletion: false}, _repo, _digest), do: {:error, :UNSUPPORTED}
 
   def delete_blob(%{storage: storage}, repo, digest) do
@@ -216,18 +217,15 @@ defmodule OCI.Registry do
   end
 
   def get_manifest(%{storage: storage}, repo, reference) do
-    storage.__struct__.get_manifest(storage, repo, reference)
+    adapter(storage).get_manifest(storage, repo, reference)
   end
 
   def head_manifest(%{storage: storage}, repo, reference) do
-    with {:ok, digest, size} <- storage.__struct__.head_manifest(storage, repo, reference) do
-      content_type = "application/vnd.oci.image.manifest.v1+json"
-      {:ok, content_type, digest, size}
-    end
+    adapter(storage).head_manifest(storage, repo, reference)
   end
 
   def list_tags(%{storage: storage}, repo, pagination) do
-    storage.__struct__.list_tags(storage, repo, pagination)
+    adapter(storage).list_tags(storage, repo, pagination)
   end
 
   @doc """
