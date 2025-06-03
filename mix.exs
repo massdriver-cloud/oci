@@ -60,18 +60,20 @@ defmodule OCI.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:excoveralls, "~> 0.18", only: :test},
+      {:plug, ">= 1.10.0 and < 2.0.0"},
+      {:typed_struct, "~> 0.3"},
+      {:jason, "~> 1.4", override: true},
+      {:uuid, "~> 1.1", override: true},
+
+      # Dev dependencies
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.29", only: :dev, runtime: false},
-      {:jason, "~> 1.4", override: true},
+      {:ex_doc, "~> 0.29", only: [:test, :dev], runtime: false},
+      {:excoveralls, "~> 0.18", only: [:test, :dev]},
       {:mix_test_watch, "~> 1.1", only: [:dev, :test], runtime: false},
-      {:phoenix, ">= 1.5.0 and < 2.0.0", optional: true},
-      {:plug, ">= 1.10.0 and < 2.0.0"},
-      {:plug_cowboy, "~> 2.7", only: :test},
-      {:temp, "~> 0.4", only: [:test, :dev]},
-      {:typed_struct, "~> 0.3"},
-      {:uuid, "~> 1.1", override: true}
+      {:plug_cowboy, "~> 2.7", only: [:test, :dev]},
+      {:phoenix, ">= 1.5.0 and < 2.0.0", only: [:test, :dev]},
+      {:temp, "~> 0.4", only: [:test, :dev]}
     ]
   end
 
