@@ -52,7 +52,7 @@ defmodule OCI.Plug.Parser do
     - `{:error, reason}` on failure
     - Raises `Plug.Parsers.ParseError` on JSON decode failure for manifests
   """
-  @spec parse(Plug.Conn.t(), String.t(), String.t(), map(), opts()) ::
+  @spec parse(Plug.Conn.t(), String.t(), String.t(), any(), opts()) ::
           {:ok, map(), Plug.Conn.t()} | {:error, term()} | {:next, Plug.Conn.t()}
   def parse(conn, "application", "octet-stream", _headers, opts) do
     read_full_body(conn, opts, "")

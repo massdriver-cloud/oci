@@ -76,8 +76,11 @@ defmodule OCI.Storage.Local do
              :ok <- File.write!(digest_path, data) do
           :ok
         else
-          {:error, :DIGEST_INVALID} -> {:error, :DIGEST_INVALID}
-          _ -> {:error, :BLOB_UPLOAD_UNKNOWN}
+          {:error, :DIGEST_INVALID} ->
+            {:error, :DIGEST_INVALID}
+
+          _ ->
+            {:error, :BLOB_UPLOAD_UNKNOWN}
         end
 
       err ->
@@ -280,9 +283,9 @@ defmodule OCI.Storage.Local do
   @impl true
   def upload_chunk(%__MODULE__{} = storage, repo, uuid, chunk, _chunk_range) do
     upload_dir = upload_dir(storage, repo, uuid)
-    monotonic_time = System.monotonic_time(:millisecond)
+    index = File.ls!(upload_dir) |> length()
 
-    File.write!("#{upload_dir}/chunk.#{monotonic_time}", chunk)
+    File.write!("#{upload_dir}/chunk.#{index}", chunk)
 
     total_range =
       upload_dir

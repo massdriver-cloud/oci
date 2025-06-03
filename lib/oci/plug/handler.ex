@@ -186,8 +186,8 @@ defmodule OCI.Plug.Handler do
     content_length =
       conn |> get_req_header("content-length") |> List.first() |> String.to_integer()
 
-    OCI.Inspector.pry(binding())
-
+    # TODO: I think i see what sup w/ the flaky test.
+    # if the upload chunk fails, we continue to process the blob upload.
     if content_length > 0 do
       case Registry.upload_chunk(
              registry,

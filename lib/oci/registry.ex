@@ -165,7 +165,7 @@ defmodule OCI.Registry do
   def complete_blob_upload(_registry, _repo, _uuid, nil), do: {:error, :DIGEST_INVALID}
 
   def complete_blob_upload(%{storage: storage}, repo, uuid, digest) do
-    case storage.__struct__.complete_blob_upload(
+    case adapter(storage).complete_blob_upload(
            storage,
            repo,
            uuid,
