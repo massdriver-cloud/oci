@@ -258,17 +258,11 @@ defmodule OCI.Plug.Handler do
   end
 
   def dispatch(%{method: "PUT"} = conn, :manifests, registry, repo, reference) do
-    manifest = conn.assigns[:raw_body]
+    manifest = conn.params
+    manifest_digest = conn.assigns[:oci_digest]
 
-    # TODO: plug parsers can't parse it or the digest won't be byte-for-byte the same.
-    # conn.body_params || read the raw body and parse ...
-    # or tell them to put the plug parser in front of it,
-    # happens w/ phoenix...
-
-    content_type = get_req_header(conn, "content-type") |> List.first()
-
-    case Registry.put_manifest(registry, repo, reference, manifest, content_type) do
-      {:ok, _digest} ->
+    case Registry.put_manifest(registry, repo, reference, manifest, manifest_digest) do
+      :ok ->
         conn
         |> put_resp_header("location", Registry.manifests_reference_path(repo, reference))
         |> send_resp(201, "")

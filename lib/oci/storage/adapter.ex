@@ -37,6 +37,8 @@ defmodule OCI.Storage.Adapter do
 
   @type t :: struct()
 
+  @type error_details_t :: any()
+
   @doc """
   Initializes a new storage adapter instance with the given configuration.
 
@@ -167,11 +169,12 @@ defmodule OCI.Storage.Adapter do
               storage :: t(),
               repo :: String.t(),
               reference :: String.t(),
-              manifest_json :: String.t(),
-              content_type :: String.t()
+              manifest :: map(),
+              manifest_digest :: String.t()
             ) ::
-              {:ok, digest :: String.t()}
-              | {:error, :MANIFEST_BLOB_UNKNOWN | :MANIFEST_INVALID | :NAME_UNKNOWN}
+              :ok
+              | {:error, :MANIFEST_BLOB_UNKNOWN | :MANIFEST_INVALID | :NAME_UNKNOWN,
+                 error_details_t}
 
   @callback get_manifest(t(), String.t(), String.t()) ::
               {:ok, String.t(), String.t(), String.t()} | {:error, atom()}

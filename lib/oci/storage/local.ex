@@ -188,41 +188,29 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def put_manifest(%__MODULE__{} = storage, repo, reference, manifest_json, _content_type) do
-    # Validate referenced blobs exist
+  def put_manifest(%__MODULE__{} = storage, repo, reference, manifest, manifest_digest) do
+    blobs = [manifest["config"]["digest"]] ++ Enum.map(manifest["layers"], & &1["digest"])
 
-    case Jason.decode(manifest_json) do
-      {:ok, manifest} ->
-        blobs = [manifest["config"]["digest"]] ++ Enum.map(manifest["layers"], & &1["digest"])
+    if Enum.any?(blobs, fn digest ->
+         match?({:error, _}, blob_exists?(storage, repo, digest))
+       end) do
+      # TODO; return which blobs are missing.
+      # TODO: is this the right error or MANIFEST_INVALID?
+      {:error, :MANIFEST_BLOB_UNKNOWN, ""}
+    else
+      # Store manifest by digest
+      manifest_json = Jason.encode!(manifest)
 
-        if Enum.any?(blobs, fn digest ->
-             match?({:error, _}, blob_exists?(storage, repo, digest))
-           end) do
-          # TODO; return which blobs are missing.
-          {:error, :MANIFEST_BLOB_UNKNOWN, ""}
-        else
-          # Calculate digest
-          digest =
-            "sha256:" <> OCI.Registry.sha256(manifest_json)
+      :ok = File.mkdir_p!(manifests_dir(storage, repo))
+      File.write!(digest_path(storage, repo, manifest_digest), manifest_json)
 
-          # Store manifest by digest
-          :ok = File.mkdir_p!(manifests_dir(storage, repo))
-          File.write!(digest_path(storage, repo, digest), manifest_json)
+      # If reference is a tag, create a tag reference
+      if !String.starts_with?(reference, "sha256:") do
+        :ok = File.mkdir_p!(tags_dir(storage, repo))
+        File.write!(tag_path(storage, repo, reference), manifest_digest)
+      end
 
-          # If reference is a tag, create a tag reference
-          if !String.starts_with?(reference, "sha256:") do
-            :ok = File.mkdir_p!(tags_dir(storage, repo))
-            File.write!(tag_path(storage, repo, reference), digest)
-          end
-
-          {:ok, digest}
-        end
-
-      err ->
-        # TODO: return manifest validation details
-        # Failed to decode, but also Registry.validate_manifest(repo, manifest, reference)
-        # registry should digest and decode so storage layer just receives manifest+digest.
-        {:error, :MANIFEST_INVALID, "err: #{inspect(err)}"}
+      :ok
     end
   end
 

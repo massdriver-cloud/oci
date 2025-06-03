@@ -205,13 +205,13 @@ defmodule OCI.Registry do
     end
   end
 
-  def put_manifest(%{storage: storage}, repo, reference, manifest, content_type) do
+  def put_manifest(%{storage: storage}, repo, reference, manifest, manifest_digest) do
     storage.__struct__.put_manifest(
       storage,
       repo,
       reference,
       manifest,
-      content_type
+      manifest_digest
     )
   end
 
