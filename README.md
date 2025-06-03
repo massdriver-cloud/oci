@@ -47,6 +47,8 @@ end
 
 ### Basic Phoenix Integration
 
+See an example in [the test setup](./test/support/router.ex).
+
 **config/config.ex**
 
 ```elixir
@@ -62,6 +64,23 @@ config :oci,
       path: "./tmp/"
     ]
   ]
+```
+
+**endpoint.ex**
+```elixir
+defmodule Endpoint do
+  @moduledoc false
+  use Phoenix.Endpoint, otp_app: :oci
+
+  plug(Plug.Parsers,
+    parsers: [OCI.Plug.Parser, :json], # <- stick this bad boi in here. It'll full body read blob uploads and parse/digest manifests.
+    pass: ["*/*"],
+    json_decoder: Jason,
+    length: 20_000_000
+  )
+
+  plug(TestRegistryWeb.Router)
+end
 ```
 
 **router.ex:**
