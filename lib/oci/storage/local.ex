@@ -26,12 +26,13 @@ defmodule OCI.Storage.Local do
   """
 
   @behaviour OCI.Storage.Adapter
+  @manifest_v1_content_type "application/vnd.oci.image.manifest.v1+json"
 
-  defstruct [:path]
+  use TypedStruct
 
-  @type t :: %__MODULE__{
-          path: String.t()
-        }
+  typedstruct do
+    field :path, String.t(), enforce: true
+  end
 
   @doc """
   Initializes a new local storage adapter instance with the given configuration.
@@ -188,100 +189,78 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def put_manifest(%__MODULE__{} = storage, repo, reference, manifest_json, _content_type) do
-    # Validate referenced blobs exist
-    case Jason.decode(manifest_json) do
+  def put_manifest(%__MODULE__{} = storage, repo, reference, manifest, manifest_digest) do
+    blobs = [manifest["config"]["digest"]] ++ Enum.map(manifest["layers"], & &1["digest"])
+
+    if Enum.any?(blobs, fn digest ->
+         match?({:error, _}, blob_exists?(storage, repo, digest))
+       end) do
+      # TODO; return which blobs are missing.
+      # TODO: is this the right error or MANIFEST_INVALID?
+      {:error, :MANIFEST_BLOB_UNKNOWN, ""}
+    else
+      # Store manifest by digest
+      manifest_json = Jason.encode!(manifest)
+
+      :ok = File.mkdir_p!(manifests_dir(storage, repo))
+      File.write!(digest_path(storage, repo, manifest_digest), manifest_json)
+
+      # If reference is a tag, create a tag reference
+      if !String.starts_with?(reference, "sha256:") do
+        :ok = File.mkdir_p!(tags_dir(storage, repo))
+        File.write!(tag_path(storage, repo, reference), manifest_digest)
+      end
+
+      :ok
+    end
+  end
+
+  @impl true
+  def get_manifest(%__MODULE__{} = storage, repo, "sha256:" <> _digest = reference) do
+    path = digest_path(storage, repo, reference)
+
+    case File.read(path) do
       {:ok, manifest} ->
-        blobs = [manifest["config"]["digest"]] ++ Enum.map(manifest["layers"], & &1["digest"])
-
-        if Enum.any?(blobs, fn digest ->
-             match?({:error, _}, blob_exists?(storage, repo, digest))
-           end) do
-          {:error, :MANIFEST_BLOB_UNKNOWN}
-        else
-          # Calculate digest
-          digest =
-            "sha256:" <> OCI.Registry.sha256(manifest_json)
-
-          # Store manifest by digest
-          :ok = File.mkdir_p!(manifests_dir(storage, repo))
-          File.write!(digest_path(storage, repo, digest), manifest_json)
-
-          # If reference is a tag, create a tag reference
-          if !String.starts_with?(reference, "sha256:") do
-            :ok = File.mkdir_p!(tags_dir(storage, repo))
-            File.write!(tag_path(storage, repo, reference), digest)
-          end
-
-          {:ok, digest}
-        end
+        {:ok, manifest, @manifest_v1_content_type}
 
       _ ->
-        {:error, :MANIFEST_INVALID}
+        {:error, :MANIFEST_UNKNOWN, "Reference `#{reference}` not found for repo #{repo}"}
+    end
+  end
+
+  def get_manifest(%__MODULE__{} = storage, repo, tag) do
+    case File.read(tag_path(storage, repo, tag)) do
+      {:ok, digest} ->
+        get_manifest(storage, repo, digest)
+
+      _ ->
+        {:error, :MANIFEST_UNKNOWN, "Reference `#{tag}` not found for repo #{repo}"}
     end
   end
 
   @impl true
-  def get_manifest(%__MODULE__{} = storage, repo, reference) do
-    manifest_path =
-      if String.starts_with?(reference, "sha256:") do
-        digest_path(storage, repo, reference)
-      else
-        # For tags, read the digest from the tag file and then read the manifest
-        if File.exists?(tag_path(storage, repo, reference)) do
-          digest = File.read!(tag_path(storage, repo, reference))
-          digest_path(storage, repo, digest)
-        else
-          nil
-        end
-      end
+  def head_manifest(storage, repo, "sha256:" <> _digest = reference) do
+    path = digest_path(storage, repo, reference)
 
-    if manifest_path && File.exists?(manifest_path) do
-      manifest_json = File.read!(manifest_path)
+    case File.stat(path) do
+      {:ok, stat} ->
+        {:ok, @manifest_v1_content_type, stat.size}
 
-      digest =
-        "sha256:" <> OCI.Registry.sha256(manifest_json)
-
-      # If reference is a digest, verify it matches
-      if String.starts_with?(reference, "sha256:") and reference != digest do
-        {:error, :MANIFEST_UNKNOWN}
-      else
-        {:ok, manifest_json, "application/vnd.oci.image.manifest.v1+json", digest}
-      end
-    else
-      {:error, :MANIFEST_UNKNOWN}
+      _err ->
+        {:error, :MANIFEST_UNKNOWN, "Reference `#{reference}` not found for repo #{repo}"}
     end
   end
 
-  @impl true
-  def head_manifest(%__MODULE__{} = storage, repo, reference) do
-    manifest_path =
-      if String.starts_with?(reference, "sha256:") do
-        digest_path(storage, repo, reference)
-      else
-        # For tags, read the digest from the tag file and then read the manifest
-        if File.exists?(tag_path(storage, repo, reference)) do
-          digest = File.read!(tag_path(storage, repo, reference))
-          digest_path(storage, repo, digest)
-        else
-          nil
-        end
-      end
+  def head_manifest(storage, repo, tag) do
+    tag_path = tag_path(storage, repo, tag)
 
-    if manifest_path && File.exists?(manifest_path) do
-      manifest_json = File.read!(manifest_path)
+    # Read the digest from the tag file
+    case File.read(tag_path) do
+      {:ok, digest} ->
+        head_manifest(storage, repo, digest)
 
-      digest =
-        "sha256:" <> OCI.Registry.sha256(manifest_json)
-
-      # If reference is a digest, verify it matches
-      if String.starts_with?(reference, "sha256:") and reference != digest do
-        {:error, :MANIFEST_UNKNOWN}
-      else
-        {:ok, digest, byte_size(manifest_json)}
-      end
-    else
-      {:error, :MANIFEST_UNKNOWN}
+      _ ->
+        {:error, :MANIFEST_UNKNOWN, "Reference `#{tag}` not found for repo #{repo}"}
     end
   end
 

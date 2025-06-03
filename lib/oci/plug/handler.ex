@@ -80,7 +80,7 @@ defmodule OCI.Plug.Handler do
     case Registry.initiate_blob_upload(registry, repo) do
       {:ok, location} ->
         upload_id = location |> String.split("/") |> List.last()
-        chunk = conn.assigns[:raw_body]
+        chunk = conn.assigns[:oci_blob_chunk]
 
         case Registry.upload_chunk(
                registry,
@@ -150,7 +150,7 @@ defmodule OCI.Plug.Handler do
         )
 
       _ ->
-        chunk = conn.assigns[:raw_body]
+        chunk = conn.assigns[:oci_blob_chunk]
 
         case Registry.upload_chunk(registry, repo, uuid, chunk, content_range) do
           {:ok, location, range} ->
@@ -191,7 +191,7 @@ defmodule OCI.Plug.Handler do
              registry,
              repo,
              uuid,
-             conn.assigns[:raw_body],
+             conn.assigns[:oci_blob_chunk],
              nil
            ) do
         {:ok, _, _} ->
@@ -258,12 +258,11 @@ defmodule OCI.Plug.Handler do
   end
 
   def dispatch(%{method: "PUT"} = conn, :manifests, registry, repo, reference) do
-    manifest = conn.assigns[:raw_body]
+    manifest = conn.params
+    manifest_digest = conn.assigns[:oci_digest]
 
-    content_type = get_req_header(conn, "content-type") |> List.first()
-
-    case Registry.put_manifest(registry, repo, reference, manifest, content_type) do
-      {:ok, _digest} ->
+    case Registry.put_manifest(registry, repo, reference, manifest, manifest_digest) do
+      :ok ->
         conn
         |> put_resp_header("location", Registry.manifests_reference_path(repo, reference))
         |> send_resp(201, "")
@@ -275,26 +274,26 @@ defmodule OCI.Plug.Handler do
 
   def dispatch(%{method: "GET"} = conn, :manifests, registry, repo, reference) do
     case Registry.get_manifest(registry, repo, reference) do
-      {:ok, manifest, content_type, _digest} ->
+      {:ok, manifest, content_type} ->
         conn
         |> put_resp_header("content-type", content_type)
         |> send_resp(200, manifest)
 
-      {:error, oci_error_status} ->
-        error_resp(conn, oci_error_status)
+      {:error, oci_error_status, details} ->
+        error_resp(conn, oci_error_status, details)
     end
   end
 
   def dispatch(%{method: "HEAD"} = conn, :manifests, registry, repo, reference) do
     case Registry.head_manifest(registry, repo, reference) do
-      {:ok, content_type, _digest, size} ->
+      {:ok, content_type, size} ->
         conn
         |> put_resp_header("content-type", content_type)
         |> put_resp_header("content-length", "#{size}")
         |> send_resp(200, "")
 
-      {:error, oci_error_status} ->
-        error_resp(conn, oci_error_status)
+      {:error, oci_error_status, details} ->
+        error_resp(conn, oci_error_status, details)
     end
   end
 

@@ -4,6 +4,7 @@ defmodule OCI.Plug do
   """
 
   @behaviour Plug
+  require Logger
   import Plug.Conn
   alias OCI.Registry
 
@@ -23,15 +24,16 @@ defmodule OCI.Plug do
   @impl true
   def call(%{script_name: [@api_version]} = conn, %{registry: registry}) do
     conn
-    |> set_context()
-    |> ensure_request_id()
+    |> OCI.Plug.Context.call()
     |> put_private(:oci_registry, registry)
     |> authenticate()
     |> fetch_query_params()
-    |> set_raw_body()
     |> authorize()
+    # |> OCI.Inspector.log_info(nil, "before:handle/1")
     |> OCI.Inspector.inspect("before:handle/1")
     |> OCI.Plug.Handler.handle()
+
+    # |> OCI.Inspector.log_info(nil, "after:handle/1")
   end
 
   def call(conn, _opts) do
@@ -87,34 +89,6 @@ defmodule OCI.Plug do
     |> halt
   end
 
-  defp set_context(conn) do
-    segments = conn.path_info |> Enum.reverse()
-
-    {rest, endpoint, id} =
-      case segments do
-        [] -> {[], :ping, nil}
-        ["list", "tags" | rest] -> {rest, :tags_list, nil}
-        ["uploads", "blobs" | rest] -> {rest, :blobs_uploads, nil}
-        [uuid, "uploads", "blobs" | rest] -> {rest, :blobs_uploads, uuid}
-        [digest, "blobs" | rest] -> {rest, :blobs, digest}
-        [reference, "manifests" | rest] -> {rest, :manifests, reference}
-      end
-
-    # Reverse the path info, and the last parts after the known API path portions is the repo name.
-    # V2 is plucked off by the "script_name" when scope/forwarding from Phoenix
-    repo = rest |> Enum.reverse() |> Enum.join("/")
-
-    ctx = %OCI.Context{
-      subject: nil,
-      endpoint: endpoint,
-      resource: id,
-      repo: repo,
-      method: conn.method
-    }
-
-    conn |> assign(:oci_ctx, ctx)
-  end
-
   defp error_resp(conn, code, details) do
     error = OCI.Error.init(code, details)
     body = %{errors: [error]} |> Jason.encode!()
@@ -123,29 +97,5 @@ defmodule OCI.Plug do
     |> put_resp_content_type("application/json")
     |> send_resp(error.http_status, body)
     |> halt()
-  end
-
-  # Don't bother reading the body if we're already halted
-  defp set_raw_body(%{halted: true} = conn), do: conn
-
-  defp set_raw_body(%{private: %{oci_registry: registry}} = conn) do
-    max_body_size = max(registry.max_manifest_size, registry.max_blob_upload_chunk_size)
-    {:ok, body, conn} = Plug.Conn.read_body(conn, length: max_body_size)
-    assign(conn, :raw_body, body)
-  end
-
-  defp ensure_request_id(conn) do
-    case get_req_header(conn, "x-request-id") do
-      [] ->
-        id = Base.encode16(:crypto.strong_rand_bytes(12), case: :lower)
-
-        conn
-        |> put_req_header("x-request-id", id)
-        |> put_resp_header("x-request-id", id)
-        |> put_private(:plug_request_id, id)
-
-      [existing_id | _] ->
-        put_private(conn, :plug_request_id, existing_id)
-    end
   end
 end
