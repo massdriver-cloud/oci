@@ -10,7 +10,7 @@
 
 An [OCI](https://opencontainers.org/) (Open Container Initiative) compliant V2 registry server implementation for Elixir. This library provides a plug-based solution that can be integrated into any Elixir web application, with configurable storage and authentication adapters.
 
-**This is nowhere near production-ready.**
+**The included adapters are nowhere near production-ready. Make sure to implement your own before you go and have a bad time.**
 
 ## Features
 
@@ -94,6 +94,16 @@ scope "/v2" do
 end
 ```
 
+### ORAS CLI Interaction
+
+```bash
+# Push an artifact
+oras push localhost:5000/myorg/myapp:latest ./my-artifact.txt
+
+# Pull an artifact
+oras pull localhost:5000/myorg/myapp:latest
+```
+
 ### Docker CLI Interaction
 
 ```bash
@@ -107,25 +117,13 @@ docker push localhost:5000/myorg/myapp:latest
 curl -X GET http://localhost:5000/v2/myorg/myapp/tags/list
 ```
 
-### ORAS CLI Interaction
-
-```bash
-# Push an artifact
-oras push localhost:5000/myorg/myapp:latest ./my-artifact.txt
-
-# Pull an artifact
-oras pull localhost:5000/myorg/myapp:latest
-```
-
 ### Custom Storage Adapter
 
-```elixir
-```
+**TODO** See [adapter](./lib/oci/storage/adapter.ex) and [local fs example](./lib/oci/storage/local.ex)
 
 ### Custom Authentication
 
-```elixir
-```
+**TODO** See [adapter](./lib/oci/auth/adapter.ex) and [basic/static example](./lib/oci/auth/static.ex)
 
 ## Development
 
