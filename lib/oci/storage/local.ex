@@ -26,12 +26,13 @@ defmodule OCI.Storage.Local do
   """
 
   @behaviour OCI.Storage.Adapter
+  @manifest_v1_content_type "application/vnd.oci.image.manifest.v1+json"
 
-  defstruct [:path]
+  use TypedStruct
 
-  @type t :: %__MODULE__{
-          path: String.t()
-        }
+  typedstruct do
+    field :path, String.t(), enforce: true
+  end
 
   @doc """
   Initializes a new local storage adapter instance with the given configuration.
@@ -215,35 +216,25 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def get_manifest(%__MODULE__{} = storage, repo, reference) do
-    manifest_path =
-      if String.starts_with?(reference, "sha256:") do
-        digest_path(storage, repo, reference)
-      else
-        # For tags, read the digest from the tag file and then read the manifest
-        if File.exists?(tag_path(storage, repo, reference)) do
-          # TODO: manifest unknown instead of raise.
-          digest = File.read!(tag_path(storage, repo, reference))
-          digest_path(storage, repo, digest)
-        else
-          nil
-        end
-      end
+  def get_manifest(%__MODULE__{} = storage, repo, "sha256:" <> _digest = reference) do
+    path = digest_path(storage, repo, reference)
 
-    if manifest_path && File.exists?(manifest_path) do
-      manifest_json = File.read!(manifest_path)
+    case File.read(path) do
+      {:ok, manifest} ->
+        {:ok, manifest, @manifest_v1_content_type}
 
-      digest =
-        "sha256:" <> OCI.Registry.sha256(manifest_json)
+      _ ->
+        {:error, :MANIFEST_UNKNOWN, "Reference `#{reference}` not found for repo #{repo}"}
+    end
+  end
 
-      # If reference is a digest, verify it matches
-      if String.starts_with?(reference, "sha256:") and reference != digest do
-        {:error, :MANIFEST_UNKNOWN}
-      else
-        {:ok, manifest_json, "application/vnd.oci.image.manifest.v1+json", digest}
-      end
-    else
-      {:error, :MANIFEST_UNKNOWN}
+  def get_manifest(%__MODULE__{} = storage, repo, tag) do
+    case File.read(tag_path(storage, repo, tag)) do
+      {:ok, digest} ->
+        get_manifest(storage, repo, digest)
+
+      _ ->
+        {:error, :MANIFEST_UNKNOWN, "Reference `#{tag}` not found for repo #{repo}"}
     end
   end
 
@@ -253,8 +244,7 @@ defmodule OCI.Storage.Local do
 
     case File.stat(path) do
       {:ok, stat} ->
-        content_type = "application/vnd.oci.image.manifest.v1+json"
-        {:ok, content_type, stat.size}
+        {:ok, @manifest_v1_content_type, stat.size}
 
       _err ->
         {:error, :MANIFEST_UNKNOWN, "Reference `#{reference}` not found for repo #{repo}"}

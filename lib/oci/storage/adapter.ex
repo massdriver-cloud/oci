@@ -176,10 +176,11 @@ defmodule OCI.Storage.Adapter do
               | {:error, :MANIFEST_BLOB_UNKNOWN | :MANIFEST_INVALID | :NAME_UNKNOWN,
                  error_details_t}
 
-  @callback get_manifest(t(), String.t(), String.t()) ::
-              {:ok, String.t(), String.t(), String.t()} | {:error, atom()}
+  @callback get_manifest(t(), repo :: String.t(), reference :: String.t()) ::
+              {:ok, manifest :: binary(), content_type :: String.t()}
+              | {:error, atom(), error_details_t}
 
-  @callback head_manifest(t(), String.t(), String.t()) ::
+  @callback head_manifest(t(), repo :: String.t(), reference :: String.t()) ::
               {:ok, content_type :: String.t(), byte_size :: non_neg_integer()}
               | {:error, atom(), error_details_t}
 

@@ -274,13 +274,13 @@ defmodule OCI.Plug.Handler do
 
   def dispatch(%{method: "GET"} = conn, :manifests, registry, repo, reference) do
     case Registry.get_manifest(registry, repo, reference) do
-      {:ok, manifest, content_type, _digest} ->
+      {:ok, manifest, content_type} ->
         conn
         |> put_resp_header("content-type", content_type)
         |> send_resp(200, manifest)
 
-      {:error, oci_error_status} ->
-        error_resp(conn, oci_error_status)
+      {:error, oci_error_status, details} ->
+        error_resp(conn, oci_error_status, details)
     end
   end
 
