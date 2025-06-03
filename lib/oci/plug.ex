@@ -34,12 +34,12 @@ defmodule OCI.Plug do
       # * [ ] see _what_ happens during the body reader;
       #    may need to add octet stream to parser to get the body, might be nicer to have it all
       #    in the same plug instead of two reads to debug.
-      require IEx
-      IEx.pry()
+      # require IEx
+      # IEx.pry()
     end
 
     conn
-    |> set_context()
+    |> OCI.Plug.Context.call()
     |> ensure_request_id()
     |> put_private(:oci_registry, registry)
     |> authenticate()
@@ -105,34 +105,6 @@ defmodule OCI.Plug do
     |> halt
   end
 
-  defp set_context(conn) do
-    segments = conn.path_info |> Enum.reverse()
-
-    {rest, endpoint, id} =
-      case segments do
-        [] -> {[], :ping, nil}
-        ["list", "tags" | rest] -> {rest, :tags_list, nil}
-        ["uploads", "blobs" | rest] -> {rest, :blobs_uploads, nil}
-        [uuid, "uploads", "blobs" | rest] -> {rest, :blobs_uploads, uuid}
-        [digest, "blobs" | rest] -> {rest, :blobs, digest}
-        [reference, "manifests" | rest] -> {rest, :manifests, reference}
-      end
-
-    # Reverse the path info, and the last parts after the known API path portions is the repo name.
-    # V2 is plucked off by the "script_name" when scope/forwarding from Phoenix
-    repo = rest |> Enum.reverse() |> Enum.join("/")
-
-    ctx = %OCI.Context{
-      subject: nil,
-      endpoint: endpoint,
-      resource: id,
-      repo: repo,
-      method: conn.method
-    }
-
-    conn |> assign(:oci_ctx, ctx)
-  end
-
   defp error_resp(conn, code, details) do
     error = OCI.Error.init(code, details)
     body = %{errors: [error]} |> Jason.encode!()
@@ -152,6 +124,8 @@ defmodule OCI.Plug do
     assign(conn, :raw_body, body)
   end
 
+  # TODO: drop this, the inspector doesnt need it anymore, if the end user
+  # needs to see the request id, we can just put the http header and its up to them to set it.
   defp ensure_request_id(conn) do
     case get_req_header(conn, "x-request-id") do
       [] ->
