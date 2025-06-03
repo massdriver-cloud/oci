@@ -14,11 +14,7 @@ defmodule OCI.MixProject do
         "A Plug-based implementation of the OCI Distribution Specification (v2) registry server for Elixir applications. Provides a compliant HTTP API for container image distribution, supporting pull, push, and management operations.",
       source_url: "https://github.com/massdriver-cloud/oci",
       homepage_url: "https://github.com/massdriver-cloud/oci",
-      docs: [
-        main: "readme",
-        logo: "logo.png",
-        extras: ["README.md"]
-      ],
+      docs: docs(),
       aliases: aliases(),
       dialyzer: dialyzer(),
       test_coverage: [
@@ -107,6 +103,14 @@ defmodule OCI.MixProject do
         "README.md",
         "logo.png"
       ]
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      logo: "logo.png",
+      extras: ["README.md"]
     ]
   end
 end
