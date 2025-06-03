@@ -34,76 +34,30 @@ defmodule OCI.Storage.Local do
     field :path, String.t(), enforce: true
   end
 
-  @doc """
-  Initializes a new local storage adapter instance with the given configuration.
-  """
+  # Public Functions (sorted alphabetically)
   @impl true
-  def init(opts) do
-    path = Map.fetch!(opts, :path)
-    {:ok, %__MODULE__{path: path}}
+  def blob_exists?(%__MODULE__{} = storage, repo, digest) do
+    path = digest_path(storage, repo, digest)
+
+    if File.exists?(path) do
+      {:ok, File.stat!(path).size}
+    else
+      {:error, :BLOB_UNKNOWN}
+    end
   end
 
   @impl true
-  def repo_exists?(%__MODULE__{} = storage, repo) do
-    File.dir?(repo_dir(storage, repo))
-  end
-
-  @impl true
-  def initiate_blob_upload(%__MODULE__{} = storage, repo) do
-    # Create upload directory with UUID
-    uuid = UUID.uuid4()
-    uploads_dir = uploads_dir(storage, repo)
-    :ok = File.mkdir_p!(uploads_dir)
-
-    upload_dir = upload_dir(storage, repo, uuid)
-    File.mkdir_p!(upload_dir)
-
-    {:ok, uuid}
-  end
-
-  @impl true
-  def upload_chunk(%__MODULE__{} = storage, repo, uuid, chunk, _chunk_range) do
-    upload_dir = upload_dir(storage, repo, uuid)
-    monotonic_time = System.monotonic_time(:millisecond)
-
-    File.write!("#{upload_dir}/chunk.#{monotonic_time}", chunk)
-
-    total_range =
-      upload_dir
-      |> combine_chunks()
-      |> OCI.Registry.calculate_range(0)
-
-    {:ok, total_range}
-  end
-
-  @impl true
-  def get_upload_size(%__MODULE__{} = storage, repo, uuid) do
+  def cancel_blob_upload(%__MODULE__{} = storage, repo, uuid) do
     upload_dir = upload_dir(storage, repo, uuid)
 
-    data = combine_chunks(upload_dir)
-    {:ok, byte_size(data)}
-  end
-
-  @impl true
-  def get_upload_status(%__MODULE__{} = storage, repo, uuid) do
     case upload_exists?(storage, repo, uuid) do
       :ok ->
-        upload_dir = upload_dir(storage, repo, uuid)
-        data = combine_chunks(upload_dir)
-        range = OCI.Registry.calculate_range(data, 0)
-        {:ok, range}
+        File.rm_rf!(upload_dir)
+        :ok
 
       err ->
         err
     end
-  end
-
-  defp combine_chunks(upload_dir) do
-    chunks = File.ls!(upload_dir)
-
-    chunks
-    |> Enum.map(fn chunk -> File.read!(Path.join(upload_dir, chunk)) end)
-    |> Enum.join()
   end
 
   @impl true
@@ -132,51 +86,6 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def cancel_blob_upload(%__MODULE__{} = storage, repo, uuid) do
-    upload_dir = upload_dir(storage, repo, uuid)
-
-    case upload_exists?(storage, repo, uuid) do
-      :ok ->
-        File.rm_rf!(upload_dir)
-        :ok
-
-      err ->
-        err
-    end
-  end
-
-  @impl true
-  def blob_exists?(%__MODULE__{} = storage, repo, digest) do
-    path = digest_path(storage, repo, digest)
-
-    if File.exists?(path) do
-      {:ok, File.stat!(path).size}
-    else
-      {:error, :BLOB_UNKNOWN}
-    end
-  end
-
-  def upload_exists?(%__MODULE__{} = storage, repo, uuid) do
-    dir = upload_dir(storage, repo, uuid)
-
-    case File.exists?(dir) do
-      true -> :ok
-      false -> {:error, :BLOB_UPLOAD_UNKNOWN}
-    end
-  end
-
-  @impl true
-  def get_blob(%__MODULE__{} = storage, repo, digest) do
-    path = digest_path(storage, repo, digest)
-
-    if File.exists?(path) do
-      {:ok, File.read!(path)}
-    else
-      {:error, :BLOB_UNKNOWN}
-    end
-  end
-
-  @impl true
   def delete_blob(%__MODULE__{} = storage, repo, digest) do
     path = digest_path(storage, repo, digest)
 
@@ -189,29 +98,25 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def put_manifest(%__MODULE__{} = storage, repo, reference, manifest, manifest_digest) do
-    blobs = [manifest["config"]["digest"]] ++ Enum.map(manifest["layers"], & &1["digest"])
+  def delete_manifest(%__MODULE__{} = storage, repo, digest) do
+    manifest_path = digest_path(storage, repo, digest)
 
-    if Enum.any?(blobs, fn digest ->
-         match?({:error, _}, blob_exists?(storage, repo, digest))
-       end) do
-      # TODO; return which blobs are missing.
-      # TODO: is this the right error or MANIFEST_INVALID?
-      {:error, :MANIFEST_BLOB_UNKNOWN, ""}
-    else
-      # Store manifest by digest
-      manifest_json = Jason.encode!(manifest)
-
-      :ok = File.mkdir_p!(manifests_dir(storage, repo))
-      File.write!(digest_path(storage, repo, manifest_digest), manifest_json)
-
-      # If reference is a tag, create a tag reference
-      if !String.starts_with?(reference, "sha256:") do
-        :ok = File.mkdir_p!(tags_dir(storage, repo))
-        File.write!(tag_path(storage, repo, reference), manifest_digest)
-      end
-
+    if File.exists?(manifest_path) do
+      File.rm!(manifest_path)
       :ok
+    else
+      {:error, :MANIFEST_UNKNOWN}
+    end
+  end
+
+  @impl true
+  def get_blob(%__MODULE__{} = storage, repo, digest) do
+    path = digest_path(storage, repo, digest)
+
+    if File.exists?(path) do
+      {:ok, File.read!(path)}
+    else
+      {:error, :BLOB_UNKNOWN}
     end
   end
 
@@ -235,6 +140,28 @@ defmodule OCI.Storage.Local do
 
       _ ->
         {:error, :MANIFEST_UNKNOWN, "Reference `#{tag}` not found for repo #{repo}"}
+    end
+  end
+
+  @impl true
+  def get_upload_size(%__MODULE__{} = storage, repo, uuid) do
+    upload_dir = upload_dir(storage, repo, uuid)
+
+    data = combine_chunks(upload_dir)
+    {:ok, byte_size(data)}
+  end
+
+  @impl true
+  def get_upload_status(%__MODULE__{} = storage, repo, uuid) do
+    case upload_exists?(storage, repo, uuid) do
+      :ok ->
+        upload_dir = upload_dir(storage, repo, uuid)
+        data = combine_chunks(upload_dir)
+        range = OCI.Registry.calculate_range(data, 0)
+        {:ok, range}
+
+      err ->
+        err
     end
   end
 
@@ -265,15 +192,22 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def delete_manifest(%__MODULE__{} = storage, repo, digest) do
-    manifest_path = digest_path(storage, repo, digest)
+  def init(opts) do
+    path = Map.fetch!(opts, :path)
+    {:ok, %__MODULE__{path: path}}
+  end
 
-    if File.exists?(manifest_path) do
-      File.rm!(manifest_path)
-      :ok
-    else
-      {:error, :MANIFEST_UNKNOWN}
-    end
+  @impl true
+  def initiate_blob_upload(%__MODULE__{} = storage, repo) do
+    # Create upload directory with UUID
+    uuid = UUID.uuid4()
+    uploads_dir = uploads_dir(storage, repo)
+    :ok = File.mkdir_p!(uploads_dir)
+
+    upload_dir = upload_dir(storage, repo, uuid)
+    File.mkdir_p!(upload_dir)
+
+    {:ok, uuid}
   end
 
   @impl true
@@ -311,40 +245,77 @@ defmodule OCI.Storage.Local do
     end
   end
 
-  defp repo_dir(%__MODULE__{} = storage, repo) do
-    Path.join([storage.path, repo])
+  @impl true
+  def put_manifest(%__MODULE__{} = storage, repo, reference, manifest, manifest_digest) do
+    blobs = [manifest["config"]["digest"]] ++ Enum.map(manifest["layers"], & &1["digest"])
+
+    if Enum.any?(blobs, fn digest ->
+         match?({:error, _}, blob_exists?(storage, repo, digest))
+       end) do
+      # TODO; return which blobs are missing.
+      # TODO: is this the right error or MANIFEST_INVALID?
+      {:error, :MANIFEST_BLOB_UNKNOWN, ""}
+    else
+      # Store manifest by digest
+      manifest_json = Jason.encode!(manifest)
+
+      :ok = File.mkdir_p!(manifests_dir(storage, repo))
+      File.write!(digest_path(storage, repo, manifest_digest), manifest_json)
+
+      # If reference is a tag, create a tag reference
+      if !String.starts_with?(reference, "sha256:") do
+        :ok = File.mkdir_p!(tags_dir(storage, repo))
+        File.write!(tag_path(storage, repo, reference), manifest_digest)
+      end
+
+      :ok
+    end
   end
 
-  defp uploads_dir(%__MODULE__{} = storage, repo) do
-    Path.join([repo_dir(storage, repo), "uploads"])
+  @impl true
+  def repo_exists?(%__MODULE__{} = storage, repo) do
+    File.dir?(repo_dir(storage, repo))
   end
 
-  defp upload_dir(%__MODULE__{} = storage, repo, uuid) do
-    Path.join([uploads_dir(storage, repo), uuid])
+  @impl true
+  def upload_chunk(%__MODULE__{} = storage, repo, uuid, chunk, _chunk_range) do
+    upload_dir = upload_dir(storage, repo, uuid)
+    monotonic_time = System.monotonic_time(:millisecond)
+
+    File.write!("#{upload_dir}/chunk.#{monotonic_time}", chunk)
+
+    total_range =
+      upload_dir
+      |> combine_chunks()
+      |> OCI.Registry.calculate_range(0)
+
+    {:ok, total_range}
+  end
+
+  def upload_exists?(%__MODULE__{} = storage, repo, uuid) do
+    dir = upload_dir(storage, repo, uuid)
+
+    case File.exists?(dir) do
+      true -> :ok
+      false -> {:error, :BLOB_UPLOAD_UNKNOWN}
+    end
+  end
+
+  # Private Functions (sorted alphabetically)
+  defp blob_path(%__MODULE__{} = storage, repo, digest) do
+    Path.join([blobs_dir(storage, repo), digest])
   end
 
   defp blobs_dir(%__MODULE__{} = storage, repo) do
     Path.join([repo_dir(storage, repo), "blobs"])
   end
 
-  defp blob_path(%__MODULE__{} = storage, repo, digest) do
-    Path.join([blobs_dir(storage, repo), digest])
-  end
+  defp combine_chunks(upload_dir) do
+    chunks = File.ls!(upload_dir)
 
-  defp digest_path(%__MODULE__{} = storage, repo, digest) do
-    Path.join([blobs_dir(storage, repo), digest])
-  end
-
-  defp manifests_dir(%__MODULE__{} = storage, repo) do
-    Path.join([repo_dir(storage, repo), "manifests"])
-  end
-
-  defp tags_dir(%__MODULE__{} = storage, repo) do
-    Path.join([repo_dir(storage, repo), "manifest", "tags"])
-  end
-
-  defp tag_path(%__MODULE__{} = storage, repo, tag) do
-    Path.join([tags_dir(storage, repo), tag])
+    chunks
+    |> Enum.map(fn chunk -> File.read!(Path.join(upload_dir, chunk)) end)
+    |> Enum.join()
   end
 
   defp cursor(repos, nil), do: repos
@@ -355,6 +326,34 @@ defmodule OCI.Storage.Local do
     |> Enum.drop(1)
   end
 
+  defp digest_path(%__MODULE__{} = storage, repo, digest) do
+    Path.join([blobs_dir(storage, repo), digest])
+  end
+
   defp limit(repos, nil), do: repos
   defp limit(repos, n), do: Enum.take(repos, n)
+
+  defp manifests_dir(%__MODULE__{} = storage, repo) do
+    Path.join([repo_dir(storage, repo), "manifests"])
+  end
+
+  defp repo_dir(%__MODULE__{} = storage, repo) do
+    Path.join([storage.path, repo])
+  end
+
+  defp tag_path(%__MODULE__{} = storage, repo, tag) do
+    Path.join([tags_dir(storage, repo), tag])
+  end
+
+  defp tags_dir(%__MODULE__{} = storage, repo) do
+    Path.join([repo_dir(storage, repo), "manifest", "tags"])
+  end
+
+  defp upload_dir(%__MODULE__{} = storage, repo, uuid) do
+    Path.join([uploads_dir(storage, repo), uuid])
+  end
+
+  defp uploads_dir(%__MODULE__{} = storage, repo) do
+    Path.join([repo_dir(storage, repo), "uploads"])
+  end
 end
