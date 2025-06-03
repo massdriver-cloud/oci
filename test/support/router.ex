@@ -13,6 +13,13 @@ defmodule TestRegistryWeb do
     @moduledoc false
     use Phoenix.Endpoint, otp_app: :oci
 
+    plug(Plug.Parsers,
+      parsers: [OCI.Plug.Parser, :json],
+      pass: ["*/*"],
+      json_decoder: Jason,
+      length: 20_000_000
+    )
+
     plug(TestRegistryWeb.Router)
   end
 end

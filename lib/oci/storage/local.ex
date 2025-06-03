@@ -190,6 +190,7 @@ defmodule OCI.Storage.Local do
   @impl true
   def put_manifest(%__MODULE__{} = storage, repo, reference, manifest_json, _content_type) do
     # Validate referenced blobs exist
+
     case Jason.decode(manifest_json) do
       {:ok, manifest} ->
         blobs = [manifest["config"]["digest"]] ++ Enum.map(manifest["layers"], & &1["digest"])
@@ -197,7 +198,8 @@ defmodule OCI.Storage.Local do
         if Enum.any?(blobs, fn digest ->
              match?({:error, _}, blob_exists?(storage, repo, digest))
            end) do
-          {:error, :MANIFEST_BLOB_UNKNOWN}
+          # TODO; return which blobs are missing.
+          {:error, :MANIFEST_BLOB_UNKNOWN, ""}
         else
           # Calculate digest
           digest =
@@ -216,8 +218,11 @@ defmodule OCI.Storage.Local do
           {:ok, digest}
         end
 
-      _ ->
-        {:error, :MANIFEST_INVALID}
+      err ->
+        # TODO: return manifest validation details
+        # Failed to decode, but also Registry.validate_manifest(repo, manifest, reference)
+        # registry should digest and decode so storage layer just receives manifest+digest.
+        {:error, :MANIFEST_INVALID, "err: #{inspect(err)}"}
     end
   end
 

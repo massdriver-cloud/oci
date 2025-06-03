@@ -91,24 +91,30 @@ defmodule OCI.Inspector do
       request_id = conn.private[:plug_request_id]
       Process.put(:oci_inspector, %OCI.Inspector{request_id: request_id, test: test})
 
-      digest = conn.query_params["digest"]
-
-      authorization = Plug.Conn.get_req_header(conn, "authorization") |> List.first()
-      content_length = Plug.Conn.get_req_header(conn, "content-length") |> List.first()
-      content_range = Plug.Conn.get_req_header(conn, "content-range") |> List.first()
-
-      Logger.info(
-        "🔍 🔍 🔍 OCI Inspector — Runtime State (#{label}):\n" <>
-          "\t[oci-conformance-test] (#{test}):\n" <>
-          "\t\tctx:#{Kernel.inspect(conn.assigns[:oci_ctx])}\n" <>
-          "\t\tauthorization:#{authorization}\n" <>
-          "\t\t[#{conn.method}] #{conn.request_path}\n" <>
-          "\t\tdigest:#{digest} content-length=#{content_length} content-range=#{content_range}\n" <>
-          "\t\tpid:#{Kernel.inspect(self())}\n" <>
-          "\t\trequest_id:#{conn.private[:plug_request_id]}"
-      )
+      log_info(conn, test, label)
     end
 
+    conn
+  end
+
+  def log_info(conn, test, label) do
+    digest = conn.query_params["digest"]
+
+    authorization = Plug.Conn.get_req_header(conn, "authorization") |> List.first()
+    content_length = Plug.Conn.get_req_header(conn, "content-length") |> List.first()
+    content_range = Plug.Conn.get_req_header(conn, "content-range") |> List.first()
+
+    msg =
+      "🔍 🔍 🔍 OCI Inspector — Runtime State (#{label}):\n" <>
+        "\t[oci-conformance-test] (#{test}):\n" <>
+        "\t\tctx:#{Kernel.inspect(conn.assigns[:oci_ctx])}\n" <>
+        "\t\tauthorization:#{authorization}\n" <>
+        "\t\t[#{conn.method}] #{conn.request_path} (status: #{conn.status}, halted: #{conn.halted})\n" <>
+        "\t\tdigest:#{digest} content-length=#{content_length} content-range=#{content_range}\n" <>
+        "\t\tpid:#{Kernel.inspect(self())}\n" <>
+        "\t\trequest_id:#{conn.private[:plug_request_id]}"
+
+    Logger.info(msg)
     conn
   end
 
