@@ -4,7 +4,7 @@ defmodule OCI.MixProject do
   def project do
     [
       app: :oci,
-      version: "0.0.1",
+      version: "0.0.2",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -21,7 +21,13 @@ defmodule OCI.MixProject do
       ],
       aliases: aliases(),
       dialyzer: dialyzer(),
-      test_coverage: [tool: ExCoveralls]
+      test_coverage: [
+        tool: ExCoveralls,
+        filter: [
+          "test/support/*",
+          "lib/oci/inspector.ex"
+        ]
+      ]
     ]
   end
 
