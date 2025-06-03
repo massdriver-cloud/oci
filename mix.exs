@@ -66,10 +66,10 @@ defmodule OCI.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:jason, "~> 1.4"},
       {:plug, ">= 1.10.0 and < 2.0.0"},
       {:typed_struct, "~> 0.3"},
-      {:jason, "~> 1.4", override: true},
-      {:uuid, "~> 1.1", override: true},
+      {:uuid, "~> 1.1"},
 
       # Dev dependencies
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
