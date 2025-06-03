@@ -101,7 +101,8 @@ defmodule OCI.MixProject do
         "lib",
         "mix.exs",
         "README.md",
-        "assets"
+        "assets",
+        "LICENSE"
       ]
     ]
   end
@@ -110,7 +111,10 @@ defmodule OCI.MixProject do
     [
       main: "readme",
       logo: "assets/logo.png",
-      extras: ["README.md"]
+      extras: [
+        "README.md",
+        "LICENSE"
+      ]
     ]
   end
 end
