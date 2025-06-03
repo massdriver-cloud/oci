@@ -23,27 +23,11 @@ defmodule OCI.Plug do
 
   @impl true
   def call(%{script_name: [@api_version]} = conn, %{registry: registry}) do
-    oci_digest = conn.assigns[:oci_digest]
-
-    if oci_digest do
-      # TODO:
-      # * [x] add parser to router test
-      # * [x] run conftest
-      # -> only manifest failures!
-      # * [ ] get manifest to pass w/ new handling
-      # * [ ] see _what_ happens during the body reader;
-      #    may need to add octet stream to parser to get the body, might be nicer to have it all
-      #    in the same plug instead of two reads to debug.
-      # require IEx
-      # IEx.pry()
-    end
-
     conn
     |> OCI.Plug.Context.call()
     |> put_private(:oci_registry, registry)
     |> authenticate()
     |> fetch_query_params()
-    |> set_raw_body()
     |> authorize()
     # |> OCI.Inspector.log_info(nil, "before:handle/1")
     |> OCI.Inspector.inspect("before:handle/1")
@@ -113,14 +97,5 @@ defmodule OCI.Plug do
     |> put_resp_content_type("application/json")
     |> send_resp(error.http_status, body)
     |> halt()
-  end
-
-  # Don't bother reading the body if we're already halted
-  defp set_raw_body(%{halted: true} = conn), do: conn
-
-  defp set_raw_body(%{private: %{oci_registry: registry}} = conn) do
-    max_body_size = max(registry.max_manifest_size, registry.max_blob_upload_chunk_size)
-    {:ok, body, conn} = Plug.Conn.read_body(conn, length: max_body_size)
-    assign(conn, :raw_body, body)
   end
 end

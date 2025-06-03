@@ -23,7 +23,6 @@ defmodule OCI.Plug.Handler do
     case validate_repo_name(conn, ctx.repo) do
       {:ok, repo} ->
         registry = conn.private[:oci_registry]
-        OCI.Inspector.pry(binding())
         dispatch(conn, ctx.endpoint, registry, repo, ctx.resource)
 
       {:error, oci_error_status, details} ->
@@ -81,7 +80,7 @@ defmodule OCI.Plug.Handler do
     case Registry.initiate_blob_upload(registry, repo) do
       {:ok, location} ->
         upload_id = location |> String.split("/") |> List.last()
-        chunk = conn.assigns[:raw_body]
+        chunk = conn.assigns[:oci_blob_chunk]
 
         case Registry.upload_chunk(
                registry,
@@ -151,7 +150,7 @@ defmodule OCI.Plug.Handler do
         )
 
       _ ->
-        chunk = conn.assigns[:raw_body]
+        chunk = conn.assigns[:oci_blob_chunk]
 
         case Registry.upload_chunk(registry, repo, uuid, chunk, content_range) do
           {:ok, location, range} ->
@@ -192,7 +191,7 @@ defmodule OCI.Plug.Handler do
              registry,
              repo,
              uuid,
-             conn.assigns[:raw_body],
+             conn.assigns[:oci_blob_chunk],
              nil
            ) do
         {:ok, _, _} ->

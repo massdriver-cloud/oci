@@ -1,16 +1,19 @@
 defmodule OCI.Plug.Parser do
   @behaviour Plug.Parsers
 
-  # TODO: probably add octet stream support here, dont need to, but we need to read the body
-  # later in the pipeline, and it will be easier to reason about if we have one parser handling the
-  # body reading rather than two (and wondering if the other swallowed it).
-
   def init(opts), do: opts
 
   def parse(conn, "application", "octet-stream", _headers, opts) do
-    require IEx
-    IEx.pry()
-    {:next, conn}
+    read_full_body(conn, opts, "")
+    |> case do
+      {:ok, full_body, conn} ->
+        conn = Plug.Conn.assign(conn, :oci_blob_chunk, full_body)
+
+        {:ok, %{}, conn}
+
+      err ->
+        err
+    end
   end
 
   def parse(conn, "application", "vnd.oci.image.manifest.v1+json", _headers, opts) do
@@ -33,8 +36,8 @@ defmodule OCI.Plug.Parser do
             raise Plug.Parsers.ParseError, exception: %Plug.Parsers.BadEncodingError{}
         end
 
-      {:error, reason} ->
-        {:error, reason}
+      err ->
+        err
     end
   end
 

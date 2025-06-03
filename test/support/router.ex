@@ -22,4 +22,11 @@ defmodule TestRegistryWeb do
 
     plug(TestRegistryWeb.Router)
   end
+
+  defmodule ErrorView do
+    def render(conn, error) do
+      require IEx
+      IEx.pry()
+    end
+  end
 end
