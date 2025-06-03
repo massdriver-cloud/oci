@@ -5,32 +5,88 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-
-permissions:
-  contents: read
+env:
+  ELIXIR_VERSION: 1.15
+  OTP_VERSION: 25.x
 
 jobs:
-  build:
-
-    name: Build and test
+  CI:
     runs-on: ubuntu-latest
-
+    env:
+      MIX_ENV: dev
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Elixir
-      uses: erlef/setup-beam@61e01a43a562a89bfc54c7f9a378ff67b03e4a21 # v1.16.0
-      with:
-        elixir-version: '1.15.7' # [Required] Define the Elixir version
-        otp-version: '26.2'      # [Required] Define the Erlang/OTP version
-    - name: Restore dependencies cache
-      uses: actions/cache@v3
-      with:
-        path: deps
-        key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
-        restore-keys: ${{ runner.os }}-mix-
-    - name: Install dependencies
-      run: mix deps.get
-    - name: Run tests
-      run: mix test
-    - name: Run Credo
-      run: mix credo --strict 
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup BEAM
+        uses: erlef/setup-beam@v1
+        id: beam
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Restore Mix Dependencies Cache
+        uses: actions/cache/restore@v4
+        id: mix_cache
+        with:
+          path: |
+            _build
+            deps
+          key: mix-${{runner.os}}-${{steps.beam.outputs.otp-version}}-${{steps.beam.outputs.elixir-version}}-${{ hashFiles('mix.lock') }}-${{ github.ref }}
+          restore-keys: |
+            mix-${{runner.os}}-${{steps.beam.outputs.otp-version}}-${{steps.beam.outputs.elixir-version}}-${{ hashFiles('mix.lock') }}-refs/heads/${{ github.event.repository.default_branch }}
+            mix-${{runner.os}}-${{steps.beam.outputs.otp-version}}-${{steps.beam.outputs.elixir-version}}-${{ hashFiles('mix.lock') }}
+            mix-${{runner.os}}-${{steps.beam.outputs.otp-version}}-${{steps.beam.outputs.elixir-version}}-
+
+      - name: Install Mix Dependencies
+        if: steps.mix_cache.outputs.cache-hit != 'true'
+        run: |
+          mix local.rebar --force
+          mix local.hex --force
+          mix deps.get
+          mix deps.compile
+
+      - name: Save Mix cache
+        uses: actions/cache/save@v4
+        if: steps.mix_cache.outputs.cache-hit != 'true'
+        id: mix_cache_save
+        with:
+          key: mix-${{runner.os}}-${{steps.beam.outputs.otp-version}}-${{steps.beam.outputs.elixir-version}}-${{ hashFiles('mix.lock') }}-${{ github.ref }}
+          path: |
+            _build
+            deps
+
+      - name: Check compiler warnings
+        run: mix compile --warnings-as-errors
+
+      - name: Run tests
+        run: mix test --cover --exclude pending
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Run Credo
+        run: mix credo --strict
+      # Cache key based on Elixir & Erlang version
+      - name: Restore PLT cache
+        uses: actions/cache@v4
+        id: plt_cache
+        with:
+          path: |
+            priv/plts
+          key: plt-${{runner.os}}-${{steps.beam.outputs.otp-version}}-${{steps.beam.outputs.elixir-version}}-${{hashFiles('**/mix.lock')}}-${{hashFiles('**/*.ex')}}
+          restore-keys: |
+            plt-${{runner.os}}-${{steps.beam.outputs.otp-version}}-${{steps.beam.outputs.elixir-version}}-${{hashFiles('**/mix.lock')}}-${{hashFiles('**/*.ex')}}
+            plt-${{runner.os}}-${{steps.beam.outputs.otp-version}}-${{steps.beam.outputs.elixir-version}}-${{hashFiles('**/mix.lock')}}-
+            plt-${{runner.os}}-${{steps.beam.outputs.otp-version}}-${{steps.beam.outputs.elixir-version}}-
+            plt-${{runner.os}}-${{steps.beam.outputs.otp-version}}-
+
+      # Create PLTs if no cache was found.
+      # Always rebuild PLT when a job is retried
+      # (If they were cached at all, they'll be updated when we run mix dialyzer with no flags.)
+      - name: Create PLTs
+        if: steps.plt_cache.outputs.cache-hit != 'true' || github.run_attempt != '1'
+        run: mix dialyzer --plt
+
+      - name: Run Dialyzer
+        run: mix dialyzer --format github
