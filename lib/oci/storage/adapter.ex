@@ -90,7 +90,7 @@ defmodule OCI.Storage.Adapter do
   @doc """
   Gets the status of an ongoing blob upload.
   """
-  @callback get_upload_status(
+  @callback get_blob_upload_status(
               storage :: t(),
               repo :: String.t(),
               uuid :: String.t()
@@ -100,13 +100,13 @@ defmodule OCI.Storage.Adapter do
   @doc """
   Gets the total size of an ongoing blob upload.
   """
-  @callback get_upload_size(storage :: t(), repo :: String.t(), uuid :: String.t()) ::
+  @callback get_blob_upload_offset(storage :: t(), repo :: String.t(), uuid :: String.t()) ::
               {:ok, size :: non_neg_integer()} | {:error, term()}
 
   @doc """
   Gets metadata about a manifest without retrieving its content.
   """
-  @callback head_manifest(storage :: t(), repo :: String.t(), reference :: String.t()) ::
+  @callback get_manifest_metadata(storage :: t(), repo :: String.t(), reference :: String.t()) ::
               {:ok, content_type :: String.t(), byte_size :: non_neg_integer()}
               | {:error, atom(), error_details_t}
 
@@ -145,7 +145,7 @@ defmodule OCI.Storage.Adapter do
   @doc """
   Stores a manifest in the repository.
   """
-  @callback put_manifest(
+  @callback store_manifest(
               storage :: t(),
               repo :: String.t(),
               reference :: String.t(),
@@ -164,7 +164,7 @@ defmodule OCI.Storage.Adapter do
   @doc """
   Uploads a chunk of data to an ongoing blob upload.
   """
-  @callback upload_chunk(
+  @callback upload_blob_chunk(
               storage :: t(),
               repo :: String.t(),
               uuid :: String.t(),

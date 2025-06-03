@@ -147,7 +147,7 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def get_upload_size(%__MODULE__{} = storage, repo, uuid) do
+  def get_blob_upload_offset(%__MODULE__{} = storage, repo, uuid) do
     upload_dir = upload_dir(storage, repo, uuid)
 
     data = combine_chunks(upload_dir)
@@ -155,7 +155,7 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def get_upload_status(%__MODULE__{} = storage, repo, uuid) do
+  def get_blob_upload_status(%__MODULE__{} = storage, repo, uuid) do
     case upload_exists?(storage, repo, uuid) do
       :ok ->
         upload_dir = upload_dir(storage, repo, uuid)
@@ -169,7 +169,7 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def head_manifest(storage, repo, "sha256:" <> _digest = reference) do
+  def get_manifest_metadata(storage, repo, "sha256:" <> _digest = reference) do
     path = digest_path(storage, repo, reference)
 
     case File.stat(path) do
@@ -181,13 +181,13 @@ defmodule OCI.Storage.Local do
     end
   end
 
-  def head_manifest(storage, repo, tag) do
+  def get_manifest_metadata(storage, repo, tag) do
     tag_path = tag_path(storage, repo, tag)
 
     # Read the digest from the tag file
     case File.read(tag_path) do
       {:ok, digest} ->
-        head_manifest(storage, repo, digest)
+        get_manifest_metadata(storage, repo, digest)
 
       _ ->
         {:error, :MANIFEST_UNKNOWN, "Reference `#{tag}` not found for repo #{repo}"}
@@ -249,7 +249,7 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def put_manifest(%__MODULE__{} = storage, repo, reference, manifest, manifest_digest) do
+  def store_manifest(%__MODULE__{} = storage, repo, reference, manifest, manifest_digest) do
     blobs = [manifest["config"]["digest"]] ++ Enum.map(manifest["layers"], & &1["digest"])
 
     if Enum.any?(blobs, fn digest ->
@@ -281,7 +281,7 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def upload_chunk(%__MODULE__{} = storage, repo, uuid, chunk, _chunk_range) do
+  def upload_blob_chunk(%__MODULE__{} = storage, repo, uuid, chunk, _chunk_range) do
     upload_dir = upload_dir(storage, repo, uuid)
     index = File.ls!(upload_dir) |> length()
 

@@ -14,7 +14,7 @@ defmodule OCI.Plug do
   def init(opts) do
     registry =
       case Keyword.get(opts, :registry) do
-        nil -> OCI.Registry.from_app_env()
+        nil -> OCI.Registry.load_from_env()
         registry -> registry
       end
 

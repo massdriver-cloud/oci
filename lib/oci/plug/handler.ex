@@ -82,7 +82,7 @@ defmodule OCI.Plug.Handler do
         upload_id = location |> String.split("/") |> List.last()
         chunk = conn.assigns[:oci_blob_chunk]
 
-        case Registry.upload_chunk(
+        case Registry.upload_blob_chunk(
                registry,
                repo,
                upload_id,
@@ -152,7 +152,7 @@ defmodule OCI.Plug.Handler do
       _ ->
         chunk = conn.assigns[:oci_blob_chunk]
 
-        case Registry.upload_chunk(registry, repo, uuid, chunk, content_range) do
+        case Registry.upload_blob_chunk(registry, repo, uuid, chunk, content_range) do
           {:ok, location, range} ->
             conn
             |> put_resp_header("location", location)
@@ -166,7 +166,7 @@ defmodule OCI.Plug.Handler do
   end
 
   def dispatch(%{method: "GET"} = conn, :blobs_uploads, registry, repo, uuid) do
-    case Registry.get_upload_status(registry, repo, uuid) do
+    case Registry.get_blob_upload_status(registry, repo, uuid) do
       {:ok, location, range} ->
         conn
         |> put_resp_header("location", location)
@@ -189,7 +189,7 @@ defmodule OCI.Plug.Handler do
     # TODO: I think i see what sup w/ the flaky test.
     # if the upload chunk fails, we continue to process the blob upload.
     if content_length > 0 do
-      case Registry.upload_chunk(
+      case Registry.upload_blob_chunk(
              registry,
              repo,
              uuid,
@@ -263,7 +263,7 @@ defmodule OCI.Plug.Handler do
     manifest = conn.params
     manifest_digest = conn.assigns[:oci_digest]
 
-    case Registry.put_manifest(registry, repo, reference, manifest, manifest_digest) do
+    case Registry.store_manifest(registry, repo, reference, manifest, manifest_digest) do
       :ok ->
         conn
         |> put_resp_header("location", Registry.manifests_reference_path(repo, reference))
@@ -287,7 +287,7 @@ defmodule OCI.Plug.Handler do
   end
 
   def dispatch(%{method: "HEAD"} = conn, :manifests, registry, repo, reference) do
-    case Registry.head_manifest(registry, repo, reference) do
+    case Registry.get_manifest_metadata(registry, repo, reference) do
       {:ok, content_type, size} ->
         conn
         |> put_resp_header("content-type", content_type)
@@ -337,7 +337,7 @@ defmodule OCI.Plug.Handler do
   defp validate_repo_name(conn, repo) do
     registry = conn.private[:oci_registry]
 
-    case Registry.validate_name(registry, repo) do
+    case Registry.validate_repository_name(registry, repo) do
       :ok ->
         {:ok, repo}
 

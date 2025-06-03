@@ -38,7 +38,7 @@ defmodule OCI.Registry do
   @spec api_version() :: String.t()
   def api_version, do: "v2"
 
-  def from_app_env() do
+  def load_from_env() do
     oci_cfg = Application.get_all_env(:oci)
 
     auth_cfg = Keyword.fetch!(oci_cfg, :auth)
@@ -65,11 +65,11 @@ defmodule OCI.Registry do
     adapter(auth).challenge(registry)
   end
 
-  @spec validate_name(
+  @spec validate_repository_name(
           atom() | %{:repo_name_pattern => Regex.t(), optional(any()) => any()},
           binary()
         ) :: :ok | {:error, :NAME_INVALID, <<_::64, _::_*8>>}
-  def validate_name(registry, repo) do
+  def validate_repository_name(registry, repo) do
     if Regex.match?(registry.repo_name_pattern, repo) do
       :ok
     else
@@ -88,7 +88,7 @@ defmodule OCI.Registry do
   end
 
   def repo_exists?(%{storage: storage}, repo) do
-    storage.__struct__.repo_exists?(storage, repo)
+    adapter(storage).repo_exists?(storage, repo)
   end
 
   @doc """
@@ -97,7 +97,7 @@ defmodule OCI.Registry do
   The location is the full path where the blob should be uploaded.
   """
   def initiate_blob_upload(%{storage: storage}, repo) do
-    case storage.__struct__.initiate_blob_upload(storage, repo) do
+    case adapter(storage).initiate_blob_upload(storage, repo) do
       {:ok, uuid} -> {:ok, blobs_uploads_path(repo, uuid)}
       error -> error
     end
@@ -128,13 +128,13 @@ defmodule OCI.Registry do
     - `{:ok, location, range}` where location is the URL for the next chunk upload and range is the current range of uploaded bytes
     - `{:error, reason}` if the upload fails
   """
-  def upload_chunk(%{storage: storage}, repo, uuid, chunk, maybe_chunk_range) do
+  def upload_blob_chunk(%{storage: storage}, repo, uuid, chunk, maybe_chunk_range) do
     reg = adapter(storage)
 
     with :ok <- reg.upload_exists?(storage, repo, uuid),
-         {:ok, size} <- reg.get_upload_size(storage, repo, uuid),
+         {:ok, size} <- reg.get_blob_upload_offset(storage, repo, uuid),
          :ok <- verify_upload_order(size, maybe_chunk_range),
-         {:ok, range} <- reg.upload_chunk(storage, repo, uuid, chunk, maybe_chunk_range) do
+         {:ok, range} <- reg.upload_blob_chunk(storage, repo, uuid, chunk, maybe_chunk_range) do
       {:ok, blobs_uploads_path(repo, uuid), range}
     end
   end
@@ -151,15 +151,15 @@ defmodule OCI.Registry do
     - `{:ok, range}` where range is the current range of uploaded bytes
     - `{:error, :BLOB_UPLOAD_UNKNOWN}` if the upload doesn't exist
   """
-  def get_upload_status(%{storage: storage}, repo, uuid) do
-    case storage.__struct__.get_upload_status(storage, repo, uuid) do
+  def get_blob_upload_status(%{storage: storage}, repo, uuid) do
+    case adapter(storage).get_blob_upload_status(storage, repo, uuid) do
       {:ok, range} -> {:ok, blobs_uploads_path(repo, uuid), range}
       error -> error
     end
   end
 
-  def get_upload_size(%{storage: storage}, repo, uuid) do
-    storage.__struct__.get_upload_size(storage, repo, uuid)
+  def get_blob_upload_offset(%{storage: storage}, repo, uuid) do
+    adapter(storage).get_blob_upload_offset(storage, repo, uuid)
   end
 
   def complete_blob_upload(_registry, _repo, _uuid, nil), do: {:error, :DIGEST_INVALID}
@@ -177,22 +177,22 @@ defmodule OCI.Registry do
   end
 
   def cancel_blob_upload(%{storage: storage}, repo, uuid) do
-    storage.__struct__.cancel_blob_upload(storage, repo, uuid)
+    adapter(storage).cancel_blob_upload(storage, repo, uuid)
   end
 
   def blob_exists?(%{storage: storage}, repo, digest) do
-    storage.__struct__.blob_exists?(storage, repo, digest)
+    adapter(storage).blob_exists?(storage, repo, digest)
   end
 
   def get_blob(%{storage: storage}, repo, digest) do
-    storage.__struct__.get_blob(storage, repo, digest)
+    adapter(storage).get_blob(storage, repo, digest)
   end
 
   @spec delete_blob(map(), any(), any()) :: any()
   def delete_blob(%{enable_blob_deletion: false}, _repo, _digest), do: {:error, :UNSUPPORTED}
 
   def delete_blob(%{storage: storage}, repo, digest) do
-    storage.__struct__.delete_blob(storage, repo, digest)
+    adapter(storage).delete_blob(storage, repo, digest)
   end
 
   def delete_manifest(%{enable_manifest_deletion: false}, _repo, _reference),
@@ -200,14 +200,14 @@ defmodule OCI.Registry do
 
   def delete_manifest(%{storage: storage}, repo, reference) do
     if String.starts_with?(reference, "sha256:") do
-      storage.__struct__.delete_manifest(storage, repo, reference)
+      adapter(storage).delete_manifest(storage, repo, reference)
     else
       {:error, :MANIFEST_INVALID}
     end
   end
 
-  def put_manifest(%{storage: storage}, repo, reference, manifest, manifest_digest) do
-    storage.__struct__.put_manifest(
+  def store_manifest(%{storage: storage}, repo, reference, manifest, manifest_digest) do
+    adapter(storage).store_manifest(
       storage,
       repo,
       reference,
@@ -220,8 +220,8 @@ defmodule OCI.Registry do
     adapter(storage).get_manifest(storage, repo, reference)
   end
 
-  def head_manifest(%{storage: storage}, repo, reference) do
-    adapter(storage).head_manifest(storage, repo, reference)
+  def get_manifest_metadata(%{storage: storage}, repo, reference) do
+    adapter(storage).get_manifest_metadata(storage, repo, reference)
   end
 
   def list_tags(%{storage: storage}, repo, pagination) do
@@ -287,7 +287,7 @@ defmodule OCI.Registry do
             initiate_blob_upload(registry, repo)
 
           {:ok, _size} ->
-            case storage.__struct__.mount_blob(storage, repo, digest, from_repo) do
+            case adapter(storage).mount_blob(storage, repo, digest, from_repo) do
               :ok -> {:ok, blobs_digest_path(repo, digest)}
               error -> error
             end

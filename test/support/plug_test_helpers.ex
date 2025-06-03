@@ -52,7 +52,7 @@ defmodule OCI.PlugTest.Helpers do
   end
 
   # Helper function to upload a chunk to a blob upload
-  def upload_chunk(%Plug.Conn{} = conn, repo, uuid, chunk, start_range \\ 0) do
+  def upload_blob_chunk(%Plug.Conn{} = conn, repo, uuid, chunk, start_range \\ 0) do
     end_range = start_range + byte_size(chunk) - 1
 
     conn
