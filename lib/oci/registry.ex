@@ -65,16 +65,15 @@ defmodule OCI.Registry do
     adapter(auth).challenge(registry)
   end
 
-  @spec validate_repository_name(
-          atom() | %{:repo_name_pattern => Regex.t(), optional(any()) => any()},
-          binary()
-        ) :: :ok | {:error, :NAME_INVALID, <<_::64, _::_*8>>}
+  @spec validate_repository_name(registry :: t(), repo :: String.t()) ::
+          {:ok, repo :: String.t()} | {:error, :NAME_INVALID, String.t()}
+
   def validate_repository_name(registry, repo) do
     if Regex.match?(registry.repo_name_pattern, repo) do
-      :ok
+      {:ok, repo}
     else
       {:error, :NAME_INVALID,
-       "invalid repo name: #{repo}, must match pattern: #{inspect(registry.repo_name_pattern)}"}
+       "Invalid repo name: #{repo}, must match pattern: #{inspect(registry.repo_name_pattern)}."}
     end
   end
 
