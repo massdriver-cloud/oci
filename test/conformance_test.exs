@@ -11,6 +11,7 @@ defmodule OCI.ConformanceTest do
   end
 
   test "has did run conformance specs" do
+    # credo:disable-for-next-line
     assert length(ConformanceSuite.failures()) == 0
     assert length(ConformanceSuite.reports()) > 0
   end

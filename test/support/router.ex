@@ -1,3 +1,4 @@
+# credo:disable-for-this-file
 defmodule TestRegistryWeb do
   @moduledoc false
   defmodule Router do

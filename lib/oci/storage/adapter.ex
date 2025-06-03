@@ -40,43 +40,99 @@ defmodule OCI.Storage.Adapter do
   @type error_details_t :: any()
 
   @doc """
-  Initializes a new storage adapter instance with the given configuration.
-
-  ## Parameters
-    - config: The configuration for the storage adapter
-
-  ## Returns
-    - A new storage adapter instance
+  Checks if a blob exists in the repository and returns its size if found.
   """
-  @callback init(config :: map()) :: {:ok, t()} | {:error, term()}
+  @callback blob_exists?(storage :: t(), repo :: String.t(), digest :: String.t()) ::
+              {:ok, size :: non_neg_integer()} | {:error, :BLOB_UNKNOWN}
+
+  @doc """
+  Cancels an ongoing blob upload session.
+  """
+  @callback cancel_blob_upload(storage :: t(), repo :: String.t(), uuid :: String.t()) ::
+              :ok | {:error, :BLOB_UPLOAD_UNKNOWN}
+
+  @doc """
+  Finalizes a blob upload and verifies the digest.
+  """
+  @callback complete_blob_upload(
+              storage :: t(),
+              repo :: String.t(),
+              upload_id :: String.t(),
+              digest :: String.t()
+            ) ::
+              :ok | {:error, :digest_mismatch | term}
+
+  @doc """
+  Deletes a blob from the repository.
+  """
+  @callback delete_blob(storage :: t(), repo :: String.t(), digest :: String.t()) ::
+              :ok | {:error, :BLOB_UNKNOWN}
+
+  @doc """
+  Deletes a manifest from the repository.
+  """
+  @callback delete_manifest(storage :: t(), repo :: String.t(), reference :: String.t()) ::
+              :ok | {:error, atom()}
+
+  @doc """
+  Retrieves a blob's content from the repository.
+  """
+  @callback get_blob(storage :: t(), repo :: String.t(), digest :: String.t()) ::
+              {:ok, content :: binary()} | {:error, :BLOB_UNKNOWN}
+
+  @doc """
+  Retrieves a manifest from the repository.
+  """
+  @callback get_manifest(storage :: t(), repo :: String.t(), reference :: String.t()) ::
+              {:ok, manifest :: binary(), content_type :: String.t()}
+              | {:error, atom(), error_details_t}
+
+  @doc """
+  Gets the status of an ongoing blob upload.
+  """
+  @callback get_upload_status(
+              storage :: t(),
+              repo :: String.t(),
+              uuid :: String.t()
+            ) ::
+              {:ok, range :: String.t()} | {:error, term()}
+
+  @doc """
+  Gets the total size of an ongoing blob upload.
+  """
+  @callback get_upload_size(storage :: t(), repo :: String.t(), uuid :: String.t()) ::
+              {:ok, size :: non_neg_integer()} | {:error, term()}
+
+  @doc """
+  Gets metadata about a manifest without retrieving its content.
+  """
+  @callback head_manifest(storage :: t(), repo :: String.t(), reference :: String.t()) ::
+              {:ok, content_type :: String.t(), byte_size :: non_neg_integer()}
+              | {:error, atom(), error_details_t}
+
+  @doc """
+  Initializes a new storage adapter instance with the given configuration.
+  """
+  @callback init(config :: map()) :: {:ok, storage :: t()} | {:error, term()}
 
   @doc """
   Initiates a blob upload session.
-
-  Used for handling large blob uploads in chunks. Returns an upload ID that will be
-  used in subsequent chunk uploads.
-
-  ## Parameters
-    - repo: The repository name
-
-  ## Returns
-    - `{:ok, upload_id}` where upload_id is a unique identifier for this upload session
   """
   @callback initiate_blob_upload(storage :: t(), repo :: String.t()) ::
               {:ok, upload_id :: String.t()} | {:error, term()}
 
   @doc """
+  Lists tags in a repository with pagination support.
+  """
+  @callback list_tags(
+              storage :: t(),
+              repo :: String.t(),
+              pagination :: OCI.Registry.Pagination.t()
+            ) ::
+              {:ok, tags :: [String.t()]} | {:error, :NAME_UNKNOWN}
+
+  @doc """
   Mounts a blob from one repository to another.
-
-  ## Parameters
-    - storage: The storage adapter instance
-    - repo: The repository name
-    - from_repo: The source repository name
-    - digest: The digest of the blob to mount
-
-  ## Returns
-    - `:ok` if the mount is successful
-    - `{:error, :BLOB_UNKNOWN}` if the blob doesn't exist in the source repository
   """
   @callback mount_blob(
               storage :: t(),
@@ -87,84 +143,8 @@ defmodule OCI.Storage.Adapter do
               :ok | {:error, :BLOB_UNKNOWN}
 
   @doc """
-  Uploads a chunk of data to an ongoing blob upload.
-
-  ## Parameters
-    - storage: The storage adapter instance
-    - repo: The repository name
-    - uuid: The upload session ID
-    - chunk: The binary data chunk to upload
-    - content_range: The range of bytes being uploaded (e.g. "0-1023")
-
-  ## Returns
-    - `{:ok, range}` indicating the current range of **total**uploaded bytes
-    - `{:error, reason}` if the upload fails
+  Stores a manifest in the repository.
   """
-  @callback upload_chunk(
-              storage :: t(),
-              repo :: String.t(),
-              uuid :: String.t(),
-              chunk :: binary(),
-              content_range :: String.t()
-            ) ::
-              {:ok, String.t()} | {:error, term()}
-
-  @doc """
-  Gets the status of an ongoing blob upload.
-
-  ## Parameters
-    - storage: The storage adapter instance
-    - repo: The repository name
-    - uuid: The upload session ID
-
-  ## Returns
-    - `{:ok, range}` where range is the current range of uploaded bytes
-    - `{:error, :BLOB_UPLOAD_UNKNOWN}` if the upload doesn't exist
-  """
-  @callback get_upload_status(
-              storage :: t(),
-              repo :: String.t(),
-              uuid :: String.t()
-            ) ::
-              {:ok, String.t()} | {:error, term()}
-
-  @callback get_upload_size(storage :: t(), repo :: String.t(), uuid :: String.t()) ::
-              {:ok, non_neg_integer()} | {:error, term()}
-
-  @doc """
-  Finalizes a blob upload and verifies the digest.
-
-  ## Parameters
-    - upload_id: The ID of the upload to finalize
-    - digest: The expected digest of the complete blob
-
-  ## Returns
-    - `:ok` if the upload is successful and digest matches
-    - `{:error, :digest_mismatch}` if the calculated digest doesn't match
-    - `{:error, reason}` for other failures
-  """
-  @callback complete_blob_upload(
-              storage :: t(),
-              repo :: String.t(),
-              upload_id :: String.t(),
-              digest :: String.t()
-            ) ::
-              :ok | {:error, :digest_mismatch | term}
-
-  @callback repo_exists?(storage :: t(), repo :: String.t()) :: boolean()
-
-  @callback cancel_blob_upload(storage :: t(), repo :: String.t(), uuid :: String.t()) ::
-              :ok | {:error, :BLOB_UPLOAD_UNKNOWN}
-
-  @callback blob_exists?(storage :: t(), repo :: String.t(), digest :: String.t()) ::
-              {:ok, size :: non_neg_integer()} | {:error, :BLOB_UNKNOWN}
-
-  @callback get_blob(storage :: t(), repo :: String.t(), digest :: String.t()) ::
-              {:ok, content :: binary()} | {:error, :BLOB_UNKNOWN}
-
-  @callback delete_blob(storage :: t(), repo :: String.t(), digest :: String.t()) ::
-              :ok | {:error, :BLOB_UNKNOWN}
-
   @callback put_manifest(
               storage :: t(),
               repo :: String.t(),
@@ -176,16 +156,20 @@ defmodule OCI.Storage.Adapter do
               | {:error, :MANIFEST_BLOB_UNKNOWN | :MANIFEST_INVALID | :NAME_UNKNOWN,
                  error_details_t}
 
-  @callback get_manifest(t(), repo :: String.t(), reference :: String.t()) ::
-              {:ok, manifest :: binary(), content_type :: String.t()}
-              | {:error, atom(), error_details_t}
+  @doc """
+  Checks if a repository exists.
+  """
+  @callback repo_exists?(storage :: t(), repo :: String.t()) :: boolean()
 
-  @callback head_manifest(t(), repo :: String.t(), reference :: String.t()) ::
-              {:ok, content_type :: String.t(), byte_size :: non_neg_integer()}
-              | {:error, atom(), error_details_t}
-
-  @callback delete_manifest(t(), String.t(), String.t()) :: :ok | {:error, atom()}
-
-  @callback list_tags(t(), String.t(), OCI.Registry.Pagination.t()) ::
-              {:ok, [String.t()]} | {:error, :NAME_UNKNOWN}
+  @doc """
+  Uploads a chunk of data to an ongoing blob upload.
+  """
+  @callback upload_chunk(
+              storage :: t(),
+              repo :: String.t(),
+              uuid :: String.t(),
+              chunk :: binary(),
+              content_range :: String.t()
+            ) ::
+              {:ok, range :: String.t()} | {:error, term()}
 end
