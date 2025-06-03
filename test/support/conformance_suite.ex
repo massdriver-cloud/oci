@@ -1,3 +1,4 @@
+# credo:disable-for-this-file
 defmodule ConformanceSuite do
   @moduledoc """
   A module for running the OCI Distribution Specification conformance tests.

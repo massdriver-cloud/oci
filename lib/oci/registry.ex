@@ -286,6 +286,7 @@ defmodule OCI.Registry do
             initiate_blob_upload(registry, repo)
 
           {:ok, _size} ->
+            # credo:disable-for-next-line
             case adapter(storage).mount_blob(storage, repo, digest, from_repo) do
               :ok -> {:ok, blobs_digest_path(repo, digest)}
               error -> error

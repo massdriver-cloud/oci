@@ -289,31 +289,28 @@ defmodule OCI.Plug.Handler do
 
   defp maybe_upload_final_chunk(conn, registry, repo, uuid) do
     # The Content-Length header is required, but may be 0 if no final chunk is being uploaded.
-    case get_req_header(conn, "content-length") do
-      [length_str] ->
-        case String.to_integer(length_str) do
-          0 ->
-            # No chunk to upload with final PUT
-            :ok
-
-          _ ->
-            # Final chunk is included, upload it before completing the blob
-            case Registry.upload_blob_chunk(
-                   registry,
-                   repo,
-                   uuid,
-                   conn.assigns[:oci_blob_chunk],
-                   nil
-                 ) do
-              {:ok, _, _} -> :ok
-              {:error, reason} -> {:error, reason}
-              {:error, reason, details} -> {:error, reason, details}
-            end
-        end
+    conn
+    |> get_req_header("content-length")
+    |> List.first()
+    |> String.to_integer()
+    |> case do
+      0 ->
+        # No chunk to upload with final PUT
+        :ok
 
       _ ->
-        # If Content-Length is missing, treat it like 0 for safety
-        :ok
+        # Final chunk is included, upload it before completing the blob
+        case Registry.upload_blob_chunk(
+               registry,
+               repo,
+               uuid,
+               conn.assigns[:oci_blob_chunk],
+               nil
+             ) do
+          {:ok, _, _} -> :ok
+          {:error, reason} -> {:error, reason}
+          {:error, reason, details} -> {:error, reason, details}
+        end
     end
   end
 end

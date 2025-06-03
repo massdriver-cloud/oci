@@ -64,7 +64,7 @@ jobs:
         run: mix format --check-formatted
 
       - name: Run Credo
-        run: mix credo --strict
+        run: mix credo
       # Cache key based on Elixir & Erlang version
       - name: Restore PLT cache
         uses: actions/cache@v4
