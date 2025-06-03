@@ -186,6 +186,8 @@ defmodule OCI.Plug.Handler do
     content_length =
       conn |> get_req_header("content-length") |> List.first() |> String.to_integer()
 
+    OCI.Inspector.pry(binding())
+
     if content_length > 0 do
       case Registry.upload_chunk(
              registry,
