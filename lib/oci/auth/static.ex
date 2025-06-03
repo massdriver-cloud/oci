@@ -1,3 +1,4 @@
+# credo:disable-for-this-file
 defmodule OCI.Auth.Static do
   @moduledoc """
   Static auth adapter for OCI.
