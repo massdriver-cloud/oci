@@ -178,40 +178,22 @@ defmodule OCI.Plug.Handler do
     end
   end
 
-  # The closing `PUT` request MUST include the `<digest>` of the whole blob (not the final chunk) as a query parameter.# The closing `PUT` request MUST include the `<digest>` of the whole blob (not the final chunk) as a query parameter.
+  # The closing `PUT` request MUST include the `<digest>` of the whole blob (not the final chunk) as a query parameter.
   def dispatch(%{method: "PUT"} = conn, :blobs_uploads, registry, repo, uuid) do
     digest = conn.query_params["digest"]
 
     # Must have a content-length, it may be 0 depending on if a final chunk is being uploaded or not with the digest.
-    content_length =
-      conn |> get_req_header("content-length") |> List.first() |> String.to_integer()
-
-    # TODO: I think i see what sup w/ the flaky test.
-    # if the upload chunk fails, we continue to process the blob upload.
-    if content_length > 0 do
-      case Registry.upload_blob_chunk(
-             registry,
-             repo,
-             uuid,
-             conn.assigns[:oci_blob_chunk],
-             nil
-           ) do
-        {:ok, _, _} ->
-          :ok
-
-        {:error, oci_error_status} ->
-          error_resp(conn, oci_error_status)
-      end
-    end
-
-    case Registry.complete_blob_upload(registry, repo, uuid, digest) do
-      {:ok, location} ->
-        conn
-        |> put_resp_header("location", location)
-        |> send_resp(201, "")
-
+    with :ok <- maybe_upload_final_chunk(conn, registry, repo, uuid),
+         {:ok, location} <- Registry.complete_blob_upload(registry, repo, uuid, digest) do
+      conn
+      |> put_resp_header("location", location)
+      |> send_resp(201, "")
+    else
       {:error, oci_error_status} ->
         error_resp(conn, oci_error_status)
+
+      {:error, oci_error_status, details} ->
+        error_resp(conn, oci_error_status, details)
     end
   end
 
@@ -343,6 +325,36 @@ defmodule OCI.Plug.Handler do
 
       err ->
         err
+    end
+  end
+
+  defp maybe_upload_final_chunk(conn, registry, repo, uuid) do
+    # The Content-Length header is required, but may be 0 if no final chunk is being uploaded.
+    case get_req_header(conn, "content-length") do
+      [length_str] ->
+        case String.to_integer(length_str) do
+          0 ->
+            # No chunk to upload with final PUT
+            :ok
+
+          _ ->
+            # Final chunk is included, upload it before completing the blob
+            case Registry.upload_blob_chunk(
+                   registry,
+                   repo,
+                   uuid,
+                   conn.assigns[:oci_blob_chunk],
+                   nil
+                 ) do
+              {:ok, _, _} -> :ok
+              {:error, reason} -> {:error, reason}
+              {:error, reason, details} -> {:error, reason, details}
+            end
+        end
+
+      _ ->
+        # If Content-Length is missing, treat it like 0 for safety
+        :ok
     end
   end
 end
