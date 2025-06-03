@@ -7,6 +7,12 @@ defmodule OCI.Plug.Parser do
 
   def init(opts), do: opts
 
+  def parse(conn, "application", "octet-stream", _headers, opts) do
+    require IEx
+    IEx.pry()
+    {:next, conn}
+  end
+
   def parse(conn, "application", "vnd.oci.image.manifest.v1+json", _headers, opts) do
     read_full_body(conn, opts, "")
     |> case do
