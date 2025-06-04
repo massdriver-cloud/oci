@@ -96,9 +96,8 @@ defmodule OCI.Registry do
   The location is the full path where the blob should be uploaded.
   """
   def initiate_blob_upload(%{storage: storage}, repo) do
-    case adapter(storage).initiate_blob_upload(storage, repo) do
-      {:ok, uuid} -> {:ok, blobs_uploads_path(repo, uuid)}
-      error -> error
+    with {:ok, uuid} <- adapter(storage).initiate_blob_upload(storage, repo) do
+      {:ok, blobs_uploads_path(repo, uuid)}
     end
   end
 
@@ -151,9 +150,8 @@ defmodule OCI.Registry do
     - `{:error, :BLOB_UPLOAD_UNKNOWN}` if the upload doesn't exist
   """
   def get_blob_upload_status(%{storage: storage}, repo, uuid) do
-    case adapter(storage).get_blob_upload_status(storage, repo, uuid) do
-      {:ok, range} -> {:ok, blobs_uploads_path(repo, uuid), range}
-      error -> error
+    with {:ok, range} <- adapter(storage).get_blob_upload_status(storage, repo, uuid) do
+      {:ok, blobs_uploads_path(repo, uuid), range}
     end
   end
 
@@ -161,7 +159,8 @@ defmodule OCI.Registry do
     adapter(storage).get_blob_upload_offset(storage, repo, uuid)
   end
 
-  def complete_blob_upload(_registry, _repo, _uuid, nil), do: {:error, :DIGEST_INVALID}
+  def complete_blob_upload(_registry, repo, uuid, nil),
+    do: {:error, :DIGEST_INVALID, %{repo: repo, uuid: uuid}}
 
   def complete_blob_upload(%{storage: storage}, repo, uuid, digest) do
     with true <- adapter(storage).upload_exists?(storage, repo, uuid),
@@ -183,20 +182,21 @@ defmodule OCI.Registry do
   end
 
   @spec delete_blob(map(), any(), any()) :: any()
-  def delete_blob(%{enable_blob_deletion: false}, _repo, _digest), do: {:error, :UNSUPPORTED}
+  def delete_blob(%{enable_blob_deletion: false}, repo, digest),
+    do: {:error, :UNSUPPORTED, %{repo: repo, digest: digest}}
 
   def delete_blob(%{storage: storage}, repo, digest) do
     adapter(storage).delete_blob(storage, repo, digest)
   end
 
-  def delete_manifest(%{enable_manifest_deletion: false}, _repo, _reference),
-    do: {:error, :UNSUPPORTED}
+  def delete_manifest(%{enable_manifest_deletion: false}, repo, reference),
+    do: {:error, :UNSUPPORTED, %{repo: repo, reference: reference}}
 
   def delete_manifest(%{storage: storage}, repo, reference) do
     if String.starts_with?(reference, "sha256:") do
       adapter(storage).delete_manifest(storage, repo, reference)
     else
-      {:error, :MANIFEST_INVALID}
+      {:error, :MANIFEST_INVALID, %{repo: repo, reference: reference}}
     end
   end
 
@@ -249,20 +249,24 @@ defmodule OCI.Registry do
       iex> OCI.Registry.verify_digest("hello", "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824")
       :ok
       iex> OCI.Registry.verify_digest("hello", "sha256:wronghash")
-      {:error, :DIGEST_INVALID}
+      {:error, :DIGEST_INVALID, %{digest: "sha256:wronghash", computed: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824", msg: "Digest mismatch"}}
       iex> OCI.Registry.verify_digest("hello", "invalid-digest")
-      {:error, :DIGEST_INVALID}
+      {:error, :DIGEST_INVALID, %{digest: "invalid-digest", msg: "Invalid digest format"}}
   """
-  @spec verify_digest(binary(), String.t()) :: :ok | {:error, :DIGEST_INVALID}
+  @spec verify_digest(binary(), String.t()) :: :ok | {:error, :DIGEST_INVALID, map()}
   def verify_digest(data, digest) do
     case digest do
       "sha256:" <> hash ->
         computed = sha256(data)
 
-        if computed == hash, do: :ok, else: {:error, :DIGEST_INVALID}
+        if computed == hash,
+          do: :ok,
+          else:
+            {:error, :DIGEST_INVALID,
+             %{digest: digest, computed: computed, msg: "Digest mismatch"}}
 
       _ ->
-        {:error, :DIGEST_INVALID}
+        {:error, :DIGEST_INVALID, %{digest: digest, msg: "Invalid digest format"}}
     end
   end
 
@@ -271,22 +275,17 @@ defmodule OCI.Registry do
   Returns {:ok, location} on success, {:error, :BLOB_UNKNOWN} if the source blob doesn't exist.
   """
   def mount_blob(%__MODULE__{storage: storage} = registry, repo, digest, from_repo) do
-    case repo_exists?(registry, from_repo) do
-      false ->
-        {:error, :NAME_UNKNOWN}
-
-      true ->
-        case blob_exists?(registry, from_repo, digest) do
-          false ->
-            initiate_blob_upload(registry, repo)
-
-          true ->
-            # credo:disable-for-next-line
-            case adapter(storage).mount_blob(storage, repo, digest, from_repo) do
-              :ok -> {:ok, blobs_digest_path(repo, digest)}
-              error -> error
-            end
+    if repo_exists?(registry, from_repo) do
+      if blob_exists?(registry, from_repo, digest) do
+        # credo:disable-for-next-line
+        with :ok <- adapter(storage).mount_blob(storage, repo, digest, from_repo) do
+          {:ok, blobs_digest_path(repo, digest)}
         end
+      else
+        initiate_blob_upload(registry, repo)
+      end
+    else
+      {:error, :NAME_UNKNOWN, %{repo: repo}}
     end
   end
 
@@ -419,10 +418,10 @@ defmodule OCI.Registry do
       iex> OCI.Registry.verify_upload_order(1024, "1024-2047")
       :ok
       iex> OCI.Registry.verify_upload_order(1024, "2048-3071")
-      {:error, :EXT_BLOB_UPLOAD_OUT_OF_ORDER}
+      {:error, :EXT_BLOB_UPLOAD_OUT_OF_ORDER, %{current_size: 1024, range: "2048-3071"}}
   """
   @spec verify_upload_order(non_neg_integer(), nil | String.t()) ::
-          :ok | {:error, :EXT_BLOB_UPLOAD_OUT_OF_ORDER}
+          :ok | {:error, :EXT_BLOB_UPLOAD_OUT_OF_ORDER, map()}
   def verify_upload_order(_current_size, nil) do
     :ok
   end
@@ -433,7 +432,7 @@ defmodule OCI.Registry do
     if range_start == current_size do
       :ok
     else
-      {:error, :EXT_BLOB_UPLOAD_OUT_OF_ORDER}
+      {:error, :EXT_BLOB_UPLOAD_OUT_OF_ORDER, %{current_size: current_size, range: range}}
     end
   end
 end
