@@ -208,9 +208,8 @@ defmodule OCI.Plug.Handler do
   end
 
   defp dispatch(%{method: "HEAD"} = conn, :blobs, registry, repo, digest) do
-    with {:ok, size} <- Registry.blob_exists?(registry, repo, digest) do
+    with :ok <- Registry.blob_exists?(registry, repo, digest) do
       conn
-      |> put_resp_header("content-length", "#{size}")
       |> send_resp(200, "")
     end
   end
@@ -249,10 +248,8 @@ defmodule OCI.Plug.Handler do
   end
 
   defp dispatch(%{method: "HEAD"} = conn, :manifests, registry, repo, reference) do
-    with {:ok, content_type, size} <- Registry.get_manifest_metadata(registry, repo, reference) do
+    with :ok <- Registry.manifest_exists?(registry, repo, reference) do
       conn
-      |> put_resp_header("content-type", content_type)
-      |> put_resp_header("content-length", "#{size}")
       |> send_resp(200, "")
     end
   end

@@ -43,15 +43,15 @@ defmodule OCI.Storage.Adapter do
   Checks if a blob exists in the repository and returns its size if found.
   """
   @callback blob_exists?(storage :: t(), repo :: String.t(), digest :: String.t()) ::
-              {:ok, size :: non_neg_integer()}
-              | {:error, :BLOB_UNKNOWN}
-              | {:error, :BLOB_UNKNOWN, error_details_t}
+              :ok | {:error, :BLOB_UNKNOWN, error_details_t}
 
   @doc """
   Cancels an ongoing blob upload session.
   """
   @callback cancel_blob_upload(storage :: t(), repo :: String.t(), uuid :: String.t()) ::
-              :ok | {:error, :BLOB_UPLOAD_UNKNOWN}
+              :ok
+              | {:error, :BLOB_UPLOAD_UNKNOWN}
+              | {:error, :BLOB_UPLOAD_UNKNOWN, error_details_t}
 
   @doc """
   Finalizes a blob upload and verifies the digest.
@@ -62,13 +62,13 @@ defmodule OCI.Storage.Adapter do
               upload_id :: String.t(),
               digest :: String.t()
             ) ::
-              :ok | {:error, :digest_mismatch | term}
+              :ok | {:error, atom()} | {:error, atom(), error_details_t}
 
   @doc """
   Deletes a blob from the repository.
   """
   @callback delete_blob(storage :: t(), repo :: String.t(), digest :: String.t()) ::
-              :ok | {:error, :BLOB_UNKNOWN}
+              :ok | {:error, :BLOB_UNKNOWN} | {:error, :BLOB_UNKNOWN, error_details_t}
 
   @doc """
   Deletes a manifest from the repository.
@@ -80,7 +80,9 @@ defmodule OCI.Storage.Adapter do
   Retrieves a blob's content from the repository.
   """
   @callback get_blob(storage :: t(), repo :: String.t(), digest :: String.t()) ::
-              {:ok, content :: binary()} | {:error, :BLOB_UNKNOWN}
+              {:ok, content :: binary()}
+              | {:error, :BLOB_UNKNOWN}
+              | {:error, :BLOB_UNKNOWN, error_details_t}
 
   @doc """
   Retrieves a manifest from the repository.
@@ -108,9 +110,8 @@ defmodule OCI.Storage.Adapter do
   @doc """
   Gets metadata about a manifest without retrieving its content.
   """
-  @callback get_manifest_metadata(storage :: t(), repo :: String.t(), reference :: String.t()) ::
-              {:ok, content_type :: String.t(), byte_size :: non_neg_integer()}
-              | {:error, atom(), error_details_t}
+  @callback manifest_exists?(storage :: t(), repo :: String.t(), reference :: String.t()) ::
+              :ok | {:error, :MANIFEST_UNKNOWN, error_details_t}
 
   @doc """
   Initializes a new storage adapter instance with the given configuration.
@@ -131,7 +132,9 @@ defmodule OCI.Storage.Adapter do
               repo :: String.t(),
               pagination :: OCI.Registry.Pagination.t()
             ) ::
-              {:ok, tags :: [String.t()]} | {:error, :NAME_UNKNOWN}
+              {:ok, tags :: [String.t()]}
+              | {:error, :NAME_UNKNOWN}
+              | {:error, :NAME_UNKNOWN, error_details_t}
 
   @doc """
   Mounts a blob from one repository to another.
@@ -142,7 +145,7 @@ defmodule OCI.Storage.Adapter do
               digest :: String.t(),
               from_repo :: String.t()
             ) ::
-              :ok | {:error, :BLOB_UNKNOWN}
+              :ok | {:error, :BLOB_UNKNOWN} | {:error, :BLOB_UNKNOWN, error_details_t}
 
   @doc """
   Stores a manifest in the repository.

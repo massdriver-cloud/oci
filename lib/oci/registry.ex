@@ -214,8 +214,8 @@ defmodule OCI.Registry do
     adapter(storage).get_manifest(storage, repo, reference)
   end
 
-  def get_manifest_metadata(%{storage: storage}, repo, reference) do
-    adapter(storage).get_manifest_metadata(storage, repo, reference)
+  def manifest_exists?(%{storage: storage}, repo, reference) do
+    adapter(storage).manifest_exists?(storage, repo, reference)
   end
 
   def list_tags(%{storage: storage}, repo, pagination) do
@@ -280,7 +280,7 @@ defmodule OCI.Registry do
           {:error, :BLOB_UNKNOWN} ->
             initiate_blob_upload(registry, repo)
 
-          {:ok, _size} ->
+          :ok ->
             # credo:disable-for-next-line
             case adapter(storage).mount_blob(storage, repo, digest, from_repo) do
               :ok -> {:ok, blobs_digest_path(repo, digest)}

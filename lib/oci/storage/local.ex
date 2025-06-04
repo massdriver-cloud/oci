@@ -40,9 +40,9 @@ defmodule OCI.Storage.Local do
     path = digest_path(storage, repo, digest)
 
     if File.exists?(path) do
-      {:ok, File.stat!(path).size}
+      :ok
     else
-      {:error, :BLOB_UNKNOWN}
+      {:error, :BLOB_UNKNOWN, "Blob `#{digest}` not found for repo #{repo}"}
     end
   end
 
@@ -163,25 +163,25 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def get_manifest_metadata(storage, repo, "sha256:" <> _digest = reference) do
+  def manifest_exists?(storage, repo, "sha256:" <> _digest = reference) do
     path = digest_path(storage, repo, reference)
 
-    case File.stat(path) do
-      {:ok, stat} ->
-        {:ok, @manifest_v1_content_type, stat.size}
+    case File.exists?(path) do
+      true ->
+        :ok
 
-      _err ->
+      false ->
         {:error, :MANIFEST_UNKNOWN, "Reference `#{reference}` not found for repo #{repo}"}
     end
   end
 
-  def get_manifest_metadata(storage, repo, tag) do
+  def manifest_exists?(storage, repo, tag) do
     tag_path = tag_path(storage, repo, tag)
 
     # Read the digest from the tag file
     case File.read(tag_path) do
       {:ok, digest} ->
-        get_manifest_metadata(storage, repo, digest)
+        manifest_exists?(storage, repo, digest)
 
       _ ->
         {:error, :MANIFEST_UNKNOWN, "Reference `#{tag}` not found for repo #{repo}"}
