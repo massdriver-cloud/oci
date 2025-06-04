@@ -12,6 +12,8 @@ An [OCI](https://opencontainers.org/) (Open Container Initiative) compliant V2 r
 
 **The included adapters are nowhere near production-ready. Make sure to implement your own before you go and have a bad time.**
 
+This library is under heavy active development as we extract it from the [Massdriver](https://massdriver.cloud) codebase. `0.0.x` will have many breaking changes.
+
 ## Features
 
 - Full OCI Distribution Specification V2 compliance

@@ -109,8 +109,9 @@ defmodule OCI.Plug.Handler do
           {:ok, _, _} ->
             :ok
 
-          {:error, oci_error_status} ->
-            error_resp(conn, oci_error_status)
+          # TODO: we are swallowing this error!!! Yikes.
+          err ->
+            err
         end
 
         case Registry.complete_blob_upload(
@@ -124,12 +125,12 @@ defmodule OCI.Plug.Handler do
             |> put_resp_header("location", location)
             |> send_resp(201, "")
 
-          {:error, oci_error_status} ->
-            error_resp(conn, oci_error_status)
+          err ->
+            err
         end
 
-      {:error, oci_error_status} ->
-        error_resp(conn, oci_error_status)
+      err ->
+        err
     end
   end
 
@@ -172,8 +173,8 @@ defmodule OCI.Plug.Handler do
             |> put_resp_header("range", range)
             |> send_resp(202, "")
 
-          {:error, oci_error_status} ->
-            error_resp(conn, oci_error_status)
+          err ->
+            err
         end
     end
   end
@@ -278,7 +279,7 @@ defmodule OCI.Plug.Handler do
     %Pagination{n: n, last: last}
   end
 
-  defp error_resp(conn, code, details \\ nil) do
+  defp error_resp(conn, code, details) do
     error = OCI.Error.init(code, details)
     body = %{errors: [error]} |> Jason.encode!()
 

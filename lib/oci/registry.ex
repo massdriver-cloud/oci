@@ -164,14 +164,9 @@ defmodule OCI.Registry do
   def complete_blob_upload(_registry, _repo, _uuid, nil), do: {:error, :DIGEST_INVALID}
 
   def complete_blob_upload(%{storage: storage}, repo, uuid, digest) do
-    case adapter(storage).complete_blob_upload(
-           storage,
-           repo,
-           uuid,
-           digest
-         ) do
-      :ok -> {:ok, blobs_digest_path(repo, digest)}
-      error -> error
+    with :ok <- adapter(storage).upload_exists?(storage, repo, uuid),
+         :ok <- adapter(storage).complete_blob_upload(storage, repo, uuid, digest) do
+      {:ok, blobs_digest_path(repo, digest)}
     end
   end
 

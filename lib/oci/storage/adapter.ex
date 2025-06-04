@@ -43,7 +43,9 @@ defmodule OCI.Storage.Adapter do
   Checks if a blob exists in the repository and returns its size if found.
   """
   @callback blob_exists?(storage :: t(), repo :: String.t(), digest :: String.t()) ::
-              {:ok, size :: non_neg_integer()} | {:error, :BLOB_UNKNOWN}
+              {:ok, size :: non_neg_integer()}
+              | {:error, :BLOB_UNKNOWN}
+              | {:error, :BLOB_UNKNOWN, error_details_t}
 
   @doc """
   Cancels an ongoing blob upload session.
@@ -171,5 +173,13 @@ defmodule OCI.Storage.Adapter do
               chunk :: binary(),
               content_range :: String.t()
             ) ::
-              {:ok, range :: String.t()} | {:error, term()}
+              {:ok, range :: String.t()}
+              | {:error, atom()}
+              | {:error, atom(), error_details_t}
+
+  @doc """
+  Checks if an upload exists.
+  """
+  @callback upload_exists?(storage :: t(), repo :: String.t(), uuid :: String.t()) ::
+              :ok | {:error, :BLOB_UPLOAD_UNKNOWN}
 end
