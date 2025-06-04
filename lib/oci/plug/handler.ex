@@ -252,7 +252,7 @@ defmodule OCI.Plug.Handler do
     if Registry.manifest_exists?(registry, repo, reference) do
       conn |> send_resp(200, "")
     else
-      {:error, :MANIFEST_UNKNOWN, %{manifest: reference}}
+      {:error, :MANIFEST_UNKNOWN, %{repo: repo, reference: reference}}
     end
   end
 
