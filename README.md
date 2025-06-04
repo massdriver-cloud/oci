@@ -40,7 +40,7 @@ The package can be installed by adding `oci` to your list of dependencies in `mi
 ```elixir
 def deps do
   [
-    {:oci, "~> 0.0.2"}
+    {:oci, "~> 0.0.3"}
   ]
 end
 ```
