@@ -39,24 +39,18 @@ defmodule OCI.Storage.Local do
   def blob_exists?(storage, repo, digest) do
     path = digest_path(storage, repo, digest)
 
-    if File.exists?(path) do
-      :ok
-    else
-      {:error, :BLOB_UNKNOWN, "Blob `#{digest}` not found for repo #{repo}"}
-    end
+    File.exists?(path)
   end
 
   @impl true
   def cancel_blob_upload(storage, repo, uuid) do
     upload_dir = upload_dir(storage, repo, uuid)
 
-    case upload_exists?(storage, repo, uuid) do
-      :ok ->
-        File.rm_rf!(upload_dir)
-        :ok
-
-      err ->
-        err
+    if upload_exists?(storage, repo, uuid) do
+      File.rm_rf!(upload_dir)
+      :ok
+    else
+      {:error, :BLOB_UPLOAD_UNKNOWN}
     end
   end
 
@@ -150,15 +144,13 @@ defmodule OCI.Storage.Local do
 
   @impl true
   def get_blob_upload_status(storage, repo, uuid) do
-    case upload_exists?(storage, repo, uuid) do
-      :ok ->
-        upload_dir = upload_dir(storage, repo, uuid)
-        data = combine_chunks(upload_dir)
-        range = OCI.Registry.calculate_range(data, 0)
-        {:ok, range}
-
-      err ->
-        err
+    if upload_exists?(storage, repo, uuid) do
+      upload_dir = upload_dir(storage, repo, uuid)
+      data = combine_chunks(upload_dir)
+      range = OCI.Registry.calculate_range(data, 0)
+      {:ok, range}
+    else
+      {:error, :BLOB_UPLOAD_UNKNOWN}
     end
   end
 
@@ -166,13 +158,7 @@ defmodule OCI.Storage.Local do
   def manifest_exists?(storage, repo, "sha256:" <> _digest = reference) do
     path = digest_path(storage, repo, reference)
 
-    case File.exists?(path) do
-      true ->
-        :ok
-
-      false ->
-        {:error, :MANIFEST_UNKNOWN, "Reference `#{reference}` not found for repo #{repo}"}
-    end
+    File.exists?(path)
   end
 
   def manifest_exists?(storage, repo, tag) do
@@ -184,7 +170,7 @@ defmodule OCI.Storage.Local do
         manifest_exists?(storage, repo, digest)
 
       _ ->
-        {:error, :MANIFEST_UNKNOWN, "Reference `#{tag}` not found for repo #{repo}"}
+        false
     end
   end
 
@@ -247,7 +233,7 @@ defmodule OCI.Storage.Local do
     blobs = [manifest["config"]["digest"]] ++ Enum.map(manifest["layers"], & &1["digest"])
 
     if Enum.any?(blobs, fn digest ->
-         match?({:error, _}, blob_exists?(storage, repo, digest))
+         !blob_exists?(storage, repo, digest)
        end) do
       # TODO; return which blobs are missing.
       # TODO: is this the right error or MANIFEST_INVALID?
@@ -293,10 +279,7 @@ defmodule OCI.Storage.Local do
   def upload_exists?(storage, repo, uuid) do
     dir = upload_dir(storage, repo, uuid)
 
-    case File.exists?(dir) do
-      true -> :ok
-      false -> {:error, :BLOB_UPLOAD_UNKNOWN}
-    end
+    File.exists?(dir)
   end
 
   # Private Functions (sorted alphabetically)

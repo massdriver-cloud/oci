@@ -208,9 +208,10 @@ defmodule OCI.Plug.Handler do
   end
 
   defp dispatch(%{method: "HEAD"} = conn, :blobs, registry, repo, digest) do
-    with :ok <- Registry.blob_exists?(registry, repo, digest) do
-      conn
-      |> send_resp(200, "")
+    if Registry.blob_exists?(registry, repo, digest) do
+      conn |> send_resp(200, "")
+    else
+      {:error, :BLOB_UNKNOWN, %{blob: digest}}
     end
   end
 
@@ -248,9 +249,10 @@ defmodule OCI.Plug.Handler do
   end
 
   defp dispatch(%{method: "HEAD"} = conn, :manifests, registry, repo, reference) do
-    with :ok <- Registry.manifest_exists?(registry, repo, reference) do
-      conn
-      |> send_resp(200, "")
+    if Registry.manifest_exists?(registry, repo, reference) do
+      conn |> send_resp(200, "")
+    else
+      {:error, :MANIFEST_UNKNOWN, %{manifest: reference}}
     end
   end
 

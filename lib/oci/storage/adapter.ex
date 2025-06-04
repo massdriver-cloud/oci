@@ -43,7 +43,7 @@ defmodule OCI.Storage.Adapter do
   Checks if a blob exists in the repository and returns its size if found.
   """
   @callback blob_exists?(storage :: t(), repo :: String.t(), digest :: String.t()) ::
-              :ok | {:error, :BLOB_UNKNOWN, error_details_t}
+              boolean()
 
   @doc """
   Cancels an ongoing blob upload session.
@@ -111,7 +111,7 @@ defmodule OCI.Storage.Adapter do
   Gets metadata about a manifest without retrieving its content.
   """
   @callback manifest_exists?(storage :: t(), repo :: String.t(), reference :: String.t()) ::
-              :ok | {:error, :MANIFEST_UNKNOWN, error_details_t}
+              boolean()
 
   @doc """
   Initializes a new storage adapter instance with the given configuration.
@@ -184,5 +184,5 @@ defmodule OCI.Storage.Adapter do
   Checks if an upload exists.
   """
   @callback upload_exists?(storage :: t(), repo :: String.t(), uuid :: String.t()) ::
-              :ok | {:error, :BLOB_UPLOAD_UNKNOWN}
+              boolean()
 end

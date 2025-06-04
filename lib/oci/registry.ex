@@ -130,7 +130,7 @@ defmodule OCI.Registry do
   def upload_blob_chunk(%{storage: storage}, repo, uuid, chunk, maybe_chunk_range) do
     reg = adapter(storage)
 
-    with :ok <- reg.upload_exists?(storage, repo, uuid),
+    with true <- reg.upload_exists?(storage, repo, uuid),
          {:ok, size} <- reg.get_blob_upload_offset(storage, repo, uuid),
          :ok <- verify_upload_order(size, maybe_chunk_range),
          {:ok, range} <- reg.upload_blob_chunk(storage, repo, uuid, chunk, maybe_chunk_range) do
@@ -164,7 +164,7 @@ defmodule OCI.Registry do
   def complete_blob_upload(_registry, _repo, _uuid, nil), do: {:error, :DIGEST_INVALID}
 
   def complete_blob_upload(%{storage: storage}, repo, uuid, digest) do
-    with :ok <- adapter(storage).upload_exists?(storage, repo, uuid),
+    with true <- adapter(storage).upload_exists?(storage, repo, uuid),
          :ok <- adapter(storage).complete_blob_upload(storage, repo, uuid, digest) do
       {:ok, blobs_digest_path(repo, digest)}
     end
@@ -277,10 +277,10 @@ defmodule OCI.Registry do
 
       true ->
         case blob_exists?(registry, from_repo, digest) do
-          {:error, :BLOB_UNKNOWN} ->
+          false ->
             initiate_blob_upload(registry, repo)
 
-          :ok ->
+          true ->
             # credo:disable-for-next-line
             case adapter(storage).mount_blob(storage, repo, digest, from_repo) do
               :ok -> {:ok, blobs_digest_path(repo, digest)}
