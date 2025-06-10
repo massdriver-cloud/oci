@@ -99,13 +99,15 @@ defmodule OCI.Storage.Adapter do
               repo :: String.t(),
               uuid :: String.t()
             ) ::
-              {:ok, range :: String.t()} | {:error, term()}
+              {:ok, range :: String.t()} | {:error, term()} | {:error, term(), error_details_t}
 
   @doc """
   Gets the total size of an ongoing blob upload.
   """
   @callback get_blob_upload_offset(storage :: t(), repo :: String.t(), uuid :: String.t()) ::
-              {:ok, size :: non_neg_integer()} | {:error, term()}
+              {:ok, size :: non_neg_integer()}
+              | {:error, term()}
+              | {:error, term(), error_details_t}
 
   @doc """
   Gets metadata about a manifest without retrieving its content.
@@ -116,13 +118,16 @@ defmodule OCI.Storage.Adapter do
   @doc """
   Initializes a new storage adapter instance with the given configuration.
   """
-  @callback init(config :: map()) :: {:ok, storage :: t()} | {:error, term()}
+  @callback init(config :: map()) ::
+              {:ok, storage :: t()} | {:error, term()} | {:error, term(), error_details_t}
 
   @doc """
   Initiates a blob upload session.
   """
   @callback initiate_blob_upload(storage :: t(), repo :: String.t()) ::
-              {:ok, upload_id :: String.t()} | {:error, term()}
+              {:ok, upload_id :: String.t()}
+              | {:error, term()}
+              | {:error, term(), error_details_t}
 
   @doc """
   Lists tags in a repository with pagination support.
