@@ -42,13 +42,23 @@ defmodule OCI.Storage.Adapter do
   @doc """
   Checks if a blob exists in the repository and returns its size if found.
   """
-  @callback blob_exists?(storage :: t(), repo :: String.t(), digest :: String.t()) ::
+  @callback blob_exists?(
+              storage :: t(),
+              repo :: String.t(),
+              digest :: String.t(),
+              ctx :: OCI.Context.t()
+            ) ::
               boolean()
 
   @doc """
   Cancels an ongoing blob upload session.
   """
-  @callback cancel_blob_upload(storage :: t(), repo :: String.t(), uuid :: String.t()) ::
+  @callback cancel_blob_upload(
+              storage :: t(),
+              repo :: String.t(),
+              uuid :: String.t(),
+              ctx :: OCI.Context.t()
+            ) ::
               :ok
               | {:error, :BLOB_UPLOAD_UNKNOWN}
               | {:error, :BLOB_UPLOAD_UNKNOWN, error_details_t}
@@ -60,26 +70,42 @@ defmodule OCI.Storage.Adapter do
               storage :: t(),
               repo :: String.t(),
               upload_id :: String.t(),
-              digest :: String.t()
+              digest :: String.t(),
+              ctx :: OCI.Context.t()
             ) ::
               :ok | {:error, atom()} | {:error, atom(), error_details_t}
 
   @doc """
   Deletes a blob from the repository.
   """
-  @callback delete_blob(storage :: t(), repo :: String.t(), digest :: String.t()) ::
+  @callback delete_blob(
+              storage :: t(),
+              repo :: String.t(),
+              digest :: String.t(),
+              ctx :: OCI.Context.t()
+            ) ::
               :ok | {:error, :BLOB_UNKNOWN} | {:error, :BLOB_UNKNOWN, error_details_t}
 
   @doc """
   Deletes a manifest from the repository.
   """
-  @callback delete_manifest(storage :: t(), repo :: String.t(), reference :: String.t()) ::
+  @callback delete_manifest(
+              storage :: t(),
+              repo :: String.t(),
+              reference :: String.t(),
+              ctx :: OCI.Context.t()
+            ) ::
               :ok | {:error, atom()}
 
   @doc """
   Retrieves a blob's content from the repository.
   """
-  @callback get_blob(storage :: t(), repo :: String.t(), digest :: String.t()) ::
+  @callback get_blob(
+              storage :: t(),
+              repo :: String.t(),
+              digest :: String.t(),
+              ctx :: OCI.Context.t()
+            ) ::
               {:ok, content :: binary()}
               | {:error, :BLOB_UNKNOWN}
               | {:error, :BLOB_UNKNOWN, error_details_t}
@@ -87,7 +113,12 @@ defmodule OCI.Storage.Adapter do
   @doc """
   Retrieves a manifest from the repository.
   """
-  @callback get_manifest(storage :: t(), repo :: String.t(), reference :: String.t()) ::
+  @callback get_manifest(
+              storage :: t(),
+              repo :: String.t(),
+              reference :: String.t(),
+              ctx :: OCI.Context.t()
+            ) ::
               {:ok, manifest :: binary(), content_type :: String.t()}
               | {:error, atom(), error_details_t}
 
@@ -97,14 +128,20 @@ defmodule OCI.Storage.Adapter do
   @callback get_blob_upload_status(
               storage :: t(),
               repo :: String.t(),
-              uuid :: String.t()
+              uuid :: String.t(),
+              ctx :: OCI.Context.t()
             ) ::
               {:ok, range :: String.t()} | {:error, term()} | {:error, term(), error_details_t}
 
   @doc """
   Gets the total size of an ongoing blob upload.
   """
-  @callback get_blob_upload_offset(storage :: t(), repo :: String.t(), uuid :: String.t()) ::
+  @callback get_blob_upload_offset(
+              storage :: t(),
+              repo :: String.t(),
+              uuid :: String.t(),
+              ctx :: OCI.Context.t()
+            ) ::
               {:ok, size :: non_neg_integer()}
               | {:error, term()}
               | {:error, term(), error_details_t}
@@ -112,7 +149,12 @@ defmodule OCI.Storage.Adapter do
   @doc """
   Gets metadata about a manifest without retrieving its content.
   """
-  @callback manifest_exists?(storage :: t(), repo :: String.t(), reference :: String.t()) ::
+  @callback manifest_exists?(
+              storage :: t(),
+              repo :: String.t(),
+              reference :: String.t(),
+              ctx :: OCI.Context.t()
+            ) ::
               boolean()
 
   @doc """
@@ -124,7 +166,7 @@ defmodule OCI.Storage.Adapter do
   @doc """
   Initiates a blob upload session.
   """
-  @callback initiate_blob_upload(storage :: t(), repo :: String.t()) ::
+  @callback initiate_blob_upload(storage :: t(), repo :: String.t(), ctx :: OCI.Context.t()) ::
               {:ok, upload_id :: String.t()}
               | {:error, term()}
               | {:error, term(), error_details_t}
@@ -135,7 +177,8 @@ defmodule OCI.Storage.Adapter do
   @callback list_tags(
               storage :: t(),
               repo :: String.t(),
-              pagination :: OCI.Registry.Pagination.t()
+              pagination :: OCI.Registry.Pagination.t(),
+              ctx :: OCI.Context.t()
             ) ::
               {:ok, tags :: [String.t()]}
               | {:error, :NAME_UNKNOWN}
@@ -148,7 +191,8 @@ defmodule OCI.Storage.Adapter do
               storage :: t(),
               repo :: String.t(),
               digest :: String.t(),
-              from_repo :: String.t()
+              from_repo :: String.t(),
+              ctx :: OCI.Context.t()
             ) ::
               :ok | {:error, :BLOB_UNKNOWN} | {:error, :BLOB_UNKNOWN, error_details_t}
 
@@ -160,7 +204,8 @@ defmodule OCI.Storage.Adapter do
               repo :: String.t(),
               reference :: String.t(),
               manifest :: map(),
-              manifest_digest :: String.t()
+              manifest_digest :: String.t(),
+              ctx :: OCI.Context.t()
             ) ::
               :ok
               | {:error, :MANIFEST_BLOB_UNKNOWN | :MANIFEST_INVALID | :NAME_UNKNOWN,
@@ -169,7 +214,7 @@ defmodule OCI.Storage.Adapter do
   @doc """
   Checks if a repository exists.
   """
-  @callback repo_exists?(storage :: t(), repo :: String.t()) :: boolean()
+  @callback repo_exists?(storage :: t(), repo :: String.t(), ctx :: OCI.Context.t()) :: boolean()
 
   @doc """
   Uploads a chunk of data to an ongoing blob upload.
@@ -179,7 +224,8 @@ defmodule OCI.Storage.Adapter do
               repo :: String.t(),
               uuid :: String.t(),
               chunk :: binary(),
-              content_range :: String.t()
+              content_range :: String.t(),
+              ctx :: OCI.Context.t()
             ) ::
               {:ok, range :: String.t()}
               | {:error, atom()}
@@ -188,6 +234,11 @@ defmodule OCI.Storage.Adapter do
   @doc """
   Checks if an upload exists.
   """
-  @callback upload_exists?(storage :: t(), repo :: String.t(), uuid :: String.t()) ::
+  @callback upload_exists?(
+              storage :: t(),
+              repo :: String.t(),
+              uuid :: String.t(),
+              ctx :: OCI.Context.t()
+            ) ::
               boolean()
 end

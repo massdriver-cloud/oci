@@ -36,17 +36,17 @@ defmodule OCI.Storage.Local do
 
   # Public Functions (sorted alphabetically)
   @impl true
-  def blob_exists?(storage, repo, digest) do
+  def blob_exists?(storage, repo, digest, _ctx) do
     path = digest_path(storage, repo, digest)
 
     File.exists?(path)
   end
 
   @impl true
-  def cancel_blob_upload(storage, repo, uuid) do
+  def cancel_blob_upload(storage, repo, uuid, ctx) do
     upload_dir = upload_dir(storage, repo, uuid)
 
-    if upload_exists?(storage, repo, uuid) do
+    if upload_exists?(storage, repo, uuid, ctx) do
       File.rm_rf!(upload_dir)
       :ok
     else
@@ -55,7 +55,7 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def complete_blob_upload(storage, repo, uuid, digest) do
+  def complete_blob_upload(storage, repo, uuid, digest, _ctx) do
     blob_path = blobs_dir(storage, repo)
     File.mkdir_p!(blob_path)
 
@@ -77,7 +77,7 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def delete_blob(storage, repo, digest) do
+  def delete_blob(storage, repo, digest, _ctx) do
     path = digest_path(storage, repo, digest)
 
     if File.exists?(path) do
@@ -89,7 +89,7 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def delete_manifest(storage, repo, digest) do
+  def delete_manifest(storage, repo, digest, _ctx) do
     manifest_path = digest_path(storage, repo, digest)
 
     if File.exists?(manifest_path) do
@@ -101,7 +101,7 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def get_blob(storage, repo, digest) do
+  def get_blob(storage, repo, digest, _ctx) do
     path = digest_path(storage, repo, digest)
 
     if File.exists?(path) do
@@ -112,7 +112,7 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def get_manifest(storage, repo, "sha256:" <> _digest = reference) do
+  def get_manifest(storage, repo, "sha256:" <> _digest = reference, _ctx) do
     path = digest_path(storage, repo, reference)
 
     case File.read(path) do
@@ -124,10 +124,10 @@ defmodule OCI.Storage.Local do
     end
   end
 
-  def get_manifest(storage, repo, tag) do
+  def get_manifest(storage, repo, tag, ctx) do
     case File.read(tag_path(storage, repo, tag)) do
       {:ok, digest} ->
-        get_manifest(storage, repo, digest)
+        get_manifest(storage, repo, digest, ctx)
 
       _ ->
         {:error, :MANIFEST_UNKNOWN, "Reference `#{tag}` not found for repo #{repo}"}
@@ -135,7 +135,7 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def get_blob_upload_offset(storage, repo, uuid) do
+  def get_blob_upload_offset(storage, repo, uuid, _ctx) do
     upload_dir = upload_dir(storage, repo, uuid)
 
     data = combine_chunks(upload_dir)
@@ -143,8 +143,8 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def get_blob_upload_status(storage, repo, uuid) do
-    if upload_exists?(storage, repo, uuid) do
+  def get_blob_upload_status(storage, repo, uuid, ctx) do
+    if upload_exists?(storage, repo, uuid, ctx) do
       upload_dir = upload_dir(storage, repo, uuid)
       data = combine_chunks(upload_dir)
       range = OCI.Registry.calculate_range(data, 0)
@@ -155,19 +155,19 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def manifest_exists?(storage, repo, "sha256:" <> _digest = reference) do
+  def manifest_exists?(storage, repo, "sha256:" <> _digest = reference, _ctx) do
     path = digest_path(storage, repo, reference)
 
     File.exists?(path)
   end
 
-  def manifest_exists?(storage, repo, tag) do
+  def manifest_exists?(storage, repo, tag, ctx) do
     tag_path = tag_path(storage, repo, tag)
 
     # Read the digest from the tag file
     case File.read(tag_path) do
       {:ok, digest} ->
-        manifest_exists?(storage, repo, digest)
+        manifest_exists?(storage, repo, digest, ctx)
 
       _ ->
         false
@@ -181,7 +181,7 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def initiate_blob_upload(storage, repo) do
+  def initiate_blob_upload(storage, repo, _ctx) do
     # Create upload directory with UUID
     uuid = UUID.uuid4()
     uploads_dir = uploads_dir(storage, repo)
@@ -194,7 +194,7 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def list_tags(storage, repo, pagination) do
+  def list_tags(storage, repo, pagination, _ctx) do
     if File.dir?(tags_dir(storage, repo)) do
       tags =
         tags_dir(storage, repo)
@@ -213,7 +213,7 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def mount_blob(storage, repo, digest, from_repo) do
+  def mount_blob(storage, repo, digest, from_repo, _ctx) do
     source_path = blob_path(storage, from_repo, digest)
     target_path = blob_path(storage, repo, digest)
 
@@ -229,11 +229,11 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def store_manifest(storage, repo, reference, manifest, manifest_digest) do
+  def store_manifest(storage, repo, reference, manifest, manifest_digest, ctx) do
     blobs = [manifest["config"]["digest"]] ++ Enum.map(manifest["layers"], & &1["digest"])
 
     if Enum.any?(blobs, fn digest ->
-         !blob_exists?(storage, repo, digest)
+         !blob_exists?(storage, repo, digest, ctx)
        end) do
       # TODO; return which blobs are missing.
       # TODO: is this the right error or MANIFEST_INVALID?
@@ -256,12 +256,12 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def repo_exists?(storage, repo) do
+  def repo_exists?(storage, repo, _ctx) do
     File.dir?(repo_dir(storage, repo))
   end
 
   @impl true
-  def upload_blob_chunk(storage, repo, uuid, chunk, _chunk_range) do
+  def upload_blob_chunk(storage, repo, uuid, chunk, _chunk_range, _ctx) do
     upload_dir = upload_dir(storage, repo, uuid)
     index = File.ls!(upload_dir) |> length()
 
@@ -276,7 +276,7 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def upload_exists?(storage, repo, uuid) do
+  def upload_exists?(storage, repo, uuid, _ctx) do
     dir = upload_dir(storage, repo, uuid)
 
     File.exists?(dir)

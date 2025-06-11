@@ -86,8 +86,8 @@ defmodule OCI.Registry do
     {:ok, %__MODULE__{storage: storage, auth: auth}}
   end
 
-  def repo_exists?(%{storage: storage}, repo) do
-    adapter(storage).repo_exists?(storage, repo)
+  def repo_exists?(%{storage: storage}, repo, ctx) do
+    adapter(storage).repo_exists?(storage, repo, ctx)
   end
 
   @doc """
@@ -95,8 +95,8 @@ defmodule OCI.Registry do
   Returns {:ok, location} on success or {:error, reason} on failure.
   The location is the full path where the blob should be uploaded.
   """
-  def initiate_blob_upload(%{storage: storage}, repo) do
-    with {:ok, uuid} <- adapter(storage).initiate_blob_upload(storage, repo) do
+  def initiate_blob_upload(%{storage: storage}, repo, ctx) do
+    with {:ok, uuid} <- adapter(storage).initiate_blob_upload(storage, repo, ctx) do
       {:ok, blobs_uploads_path(repo, uuid)}
     end
   end
@@ -126,13 +126,13 @@ defmodule OCI.Registry do
     - `{:ok, location, range}` where location is the URL for the next chunk upload and range is the current range of uploaded bytes
     - `{:error, reason}` if the upload fails
   """
-  def upload_blob_chunk(%{storage: storage}, repo, uuid, chunk, maybe_chunk_range) do
+  def upload_blob_chunk(%{storage: storage}, repo, uuid, chunk, maybe_chunk_range, ctx) do
     reg = adapter(storage)
 
-    with true <- reg.upload_exists?(storage, repo, uuid),
-         {:ok, size} <- reg.get_blob_upload_offset(storage, repo, uuid),
+    with true <- reg.upload_exists?(storage, repo, uuid, ctx),
+         {:ok, size} <- reg.get_blob_upload_offset(storage, repo, uuid, ctx),
          :ok <- verify_upload_order(size, maybe_chunk_range),
-         {:ok, range} <- reg.upload_blob_chunk(storage, repo, uuid, chunk, maybe_chunk_range) do
+         {:ok, range} <- reg.upload_blob_chunk(storage, repo, uuid, chunk, maybe_chunk_range, ctx) do
       {:ok, blobs_uploads_path(repo, uuid), range}
     end
   end
@@ -149,77 +149,77 @@ defmodule OCI.Registry do
     - `{:ok, range}` where range is the current range of uploaded bytes
     - `{:error, :BLOB_UPLOAD_UNKNOWN}` if the upload doesn't exist
   """
-  def get_blob_upload_status(%{storage: storage}, repo, uuid) do
-    with {:ok, range} <- adapter(storage).get_blob_upload_status(storage, repo, uuid) do
+  def get_blob_upload_status(%{storage: storage}, repo, uuid, ctx) do
+    with {:ok, range} <- adapter(storage).get_blob_upload_status(storage, repo, uuid, ctx) do
       {:ok, blobs_uploads_path(repo, uuid), range}
     end
   end
 
-  def get_blob_upload_offset(%{storage: storage}, repo, uuid) do
-    adapter(storage).get_blob_upload_offset(storage, repo, uuid)
+  def get_blob_upload_offset(%{storage: storage}, repo, uuid, ctx) do
+    adapter(storage).get_blob_upload_offset(storage, repo, uuid, ctx)
   end
 
-  def complete_blob_upload(_registry, repo, uuid, nil),
+  def complete_blob_upload(_registry, repo, uuid, nil, _ctx),
     do: {:error, :DIGEST_INVALID, %{repo: repo, uuid: uuid}}
 
-  def complete_blob_upload(%{storage: storage}, repo, uuid, digest) do
-    with true <- adapter(storage).upload_exists?(storage, repo, uuid),
-         :ok <- adapter(storage).complete_blob_upload(storage, repo, uuid, digest) do
+  def complete_blob_upload(%{storage: storage}, repo, uuid, digest, ctx) do
+    with true <- adapter(storage).upload_exists?(storage, repo, uuid, ctx),
+         :ok <- adapter(storage).complete_blob_upload(storage, repo, uuid, digest, ctx) do
       {:ok, blobs_digest_path(repo, digest)}
     end
   end
 
-  def cancel_blob_upload(%{storage: storage}, repo, uuid) do
-    adapter(storage).cancel_blob_upload(storage, repo, uuid)
+  def cancel_blob_upload(%{storage: storage}, repo, uuid, ctx) do
+    adapter(storage).cancel_blob_upload(storage, repo, uuid, ctx)
   end
 
-  def blob_exists?(%{storage: storage}, repo, digest) do
-    adapter(storage).blob_exists?(storage, repo, digest)
+  def blob_exists?(%{storage: storage}, repo, digest, ctx) do
+    adapter(storage).blob_exists?(storage, repo, digest, ctx)
   end
 
-  def get_blob(%{storage: storage}, repo, digest) do
-    adapter(storage).get_blob(storage, repo, digest)
+  def get_blob(%{storage: storage}, repo, digest, ctx) do
+    adapter(storage).get_blob(storage, repo, digest, ctx)
   end
 
-  @spec delete_blob(map(), any(), any()) :: any()
-  def delete_blob(%{enable_blob_deletion: false}, repo, digest),
+  def delete_blob(%{enable_blob_deletion: false}, repo, digest, _ctx),
     do: {:error, :UNSUPPORTED, %{repo: repo, digest: digest}}
 
-  def delete_blob(%{storage: storage}, repo, digest) do
-    adapter(storage).delete_blob(storage, repo, digest)
+  def delete_blob(%{storage: storage}, repo, digest, ctx) do
+    adapter(storage).delete_blob(storage, repo, digest, ctx)
   end
 
-  def delete_manifest(%{enable_manifest_deletion: false}, repo, reference),
+  def delete_manifest(%{enable_manifest_deletion: false}, repo, reference, _ctx),
     do: {:error, :UNSUPPORTED, %{repo: repo, reference: reference}}
 
-  def delete_manifest(%{storage: storage}, repo, reference) do
+  def delete_manifest(%{storage: storage}, repo, reference, ctx) do
     if String.starts_with?(reference, "sha256:") do
-      adapter(storage).delete_manifest(storage, repo, reference)
+      adapter(storage).delete_manifest(storage, repo, reference, ctx)
     else
       {:error, :MANIFEST_INVALID, %{repo: repo, reference: reference}}
     end
   end
 
-  def store_manifest(%{storage: storage}, repo, reference, manifest, manifest_digest) do
+  def store_manifest(%{storage: storage}, repo, reference, manifest, manifest_digest, ctx) do
     adapter(storage).store_manifest(
       storage,
       repo,
       reference,
       manifest,
-      manifest_digest
+      manifest_digest,
+      ctx
     )
   end
 
-  def get_manifest(%{storage: storage}, repo, reference) do
-    adapter(storage).get_manifest(storage, repo, reference)
+  def get_manifest(%{storage: storage}, repo, reference, ctx) do
+    adapter(storage).get_manifest(storage, repo, reference, ctx)
   end
 
-  def manifest_exists?(%{storage: storage}, repo, reference) do
-    adapter(storage).manifest_exists?(storage, repo, reference)
+  def manifest_exists?(%{storage: storage}, repo, reference, ctx) do
+    adapter(storage).manifest_exists?(storage, repo, reference, ctx)
   end
 
-  def list_tags(%{storage: storage}, repo, pagination) do
-    adapter(storage).list_tags(storage, repo, pagination)
+  def list_tags(%{storage: storage}, repo, pagination, ctx) do
+    adapter(storage).list_tags(storage, repo, pagination, ctx)
   end
 
   @doc """
@@ -274,15 +274,15 @@ defmodule OCI.Registry do
   Mounts a blob from one repository to another.
   Returns {:ok, location} on success, {:error, :BLOB_UNKNOWN} if the source blob doesn't exist.
   """
-  def mount_blob(%__MODULE__{storage: storage} = registry, repo, digest, from_repo) do
-    if repo_exists?(registry, from_repo) do
-      if blob_exists?(registry, from_repo, digest) do
+  def mount_blob(%__MODULE__{storage: storage} = registry, repo, digest, from_repo, ctx) do
+    if repo_exists?(registry, from_repo, ctx) do
+      if blob_exists?(registry, from_repo, digest, ctx) do
         # credo:disable-for-next-line
-        with :ok <- adapter(storage).mount_blob(storage, repo, digest, from_repo) do
+        with :ok <- adapter(storage).mount_blob(storage, repo, digest, from_repo, ctx) do
           {:ok, blobs_digest_path(repo, digest)}
         end
       else
-        initiate_blob_upload(registry, repo)
+        initiate_blob_upload(registry, repo, ctx)
       end
     else
       {:error, :NAME_UNKNOWN, %{repo: repo}}

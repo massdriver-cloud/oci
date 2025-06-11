@@ -26,7 +26,7 @@ defmodule OCI.Plug.Handler do
 
         # Expects a conn as a success or a failure, alternatively return an error
         # to be handled by the default error handler.
-        case dispatch(conn, ctx.endpoint, registry, repo, ctx.resource) do
+        case dispatch(conn, ctx.endpoint, registry, repo, ctx.resource, ctx) do
           %Plug.Conn{} = conn ->
             conn
 
@@ -53,10 +53,11 @@ defmodule OCI.Plug.Handler do
           endpoint :: atom(),
           registry :: Registry.t(),
           repo :: String.t(),
-          id :: String.t()
+          id :: String.t(),
+          ctx :: OCI.Context.t()
         ) :: Plug.Conn.t() | {:error, atom()} | {:error, atom(), String.t()}
-  defp dispatch(%{method: "GET"} = conn, :tags_list, registry, repo, _id) do
-    with {:ok, tags} <- Registry.list_tags(registry, repo, pagination(conn.query_params)) do
+  defp dispatch(%{method: "GET"} = conn, :tags_list, registry, repo, _id, ctx) do
+    with {:ok, tags} <- Registry.list_tags(registry, repo, pagination(conn.query_params), ctx) do
       conn
       |> put_resp_content_type("application/json")
       |> send_resp(200, Jason.encode!(%{name: repo, tags: tags}))
@@ -69,9 +70,10 @@ defmodule OCI.Plug.Handler do
          :blobs_uploads,
          registry,
          repo,
-         _id
+         _id,
+         ctx
        ) do
-    with {:ok, location} <- Registry.mount_blob(registry, repo, mount, from) do
+    with {:ok, location} <- Registry.mount_blob(registry, repo, mount, from, ctx) do
       case String.match?(location, ~r{/blobs/uploads/}) do
         true ->
           conn
@@ -92,9 +94,10 @@ defmodule OCI.Plug.Handler do
          :blobs_uploads,
          registry,
          repo,
-         _id
+         _id,
+         ctx
        ) do
-    case Registry.initiate_blob_upload(registry, repo) do
+    case Registry.initiate_blob_upload(registry, repo, ctx) do
       {:ok, location} ->
         upload_id = location |> String.split("/") |> List.last()
         chunk = conn.assigns[:oci_blob_chunk]
@@ -104,7 +107,8 @@ defmodule OCI.Plug.Handler do
                repo,
                upload_id,
                chunk,
-               nil
+               nil,
+               ctx
              ) do
           {:ok, _, _} ->
             :ok
@@ -118,7 +122,8 @@ defmodule OCI.Plug.Handler do
                registry,
                repo,
                upload_id,
-               digest
+               digest,
+               ctx
              ) do
           {:ok, location} ->
             conn
@@ -135,8 +140,8 @@ defmodule OCI.Plug.Handler do
   end
 
   # Initiate a chunked blob upload session
-  defp dispatch(%{method: "POST"} = conn, :blobs_uploads, registry, repo, _id) do
-    with {:ok, location} <- Registry.initiate_blob_upload(registry, repo) do
+  defp dispatch(%{method: "POST"} = conn, :blobs_uploads, registry, repo, _id, ctx) do
+    with {:ok, location} <- Registry.initiate_blob_upload(registry, repo, ctx) do
       conn
       |> put_resp_header("location", location)
       |> send_resp(202, "")
@@ -152,7 +157,7 @@ defmodule OCI.Plug.Handler do
   # - Must be inclusive on both ends (e.g. "0-1023")
   # - First chunk must begin with 0
   # - Must match regex ^[0-9]+-[0-9]+$
-  defp dispatch(%{method: "PATCH"} = conn, :blobs_uploads, registry, repo, uuid) do
+  defp dispatch(%{method: "PATCH"} = conn, :blobs_uploads, registry, repo, uuid, ctx) do
     content_range = conn |> get_req_header("content-range") |> List.first()
 
     case content_range do
@@ -166,7 +171,7 @@ defmodule OCI.Plug.Handler do
       _ ->
         chunk = conn.assigns[:oci_blob_chunk]
 
-        case Registry.upload_blob_chunk(registry, repo, uuid, chunk, content_range) do
+        case Registry.upload_blob_chunk(registry, repo, uuid, chunk, content_range, ctx) do
           {:ok, location, range} ->
             conn
             |> put_resp_header("location", location)
@@ -179,8 +184,8 @@ defmodule OCI.Plug.Handler do
     end
   end
 
-  defp dispatch(%{method: "GET"} = conn, :blobs_uploads, registry, repo, uuid) do
-    with {:ok, location, range} <- Registry.get_blob_upload_status(registry, repo, uuid) do
+  defp dispatch(%{method: "GET"} = conn, :blobs_uploads, registry, repo, uuid, ctx) do
+    with {:ok, location, range} <- Registry.get_blob_upload_status(registry, repo, uuid, ctx) do
       conn
       |> put_resp_header("location", location)
       |> put_resp_header("range", range)
@@ -189,82 +194,82 @@ defmodule OCI.Plug.Handler do
   end
 
   # The closing `PUT` request MUST include the `<digest>` of the whole blob (not the final chunk) as a query parameter.
-  defp dispatch(%{method: "PUT"} = conn, :blobs_uploads, registry, repo, uuid) do
+  defp dispatch(%{method: "PUT"} = conn, :blobs_uploads, registry, repo, uuid, ctx) do
     digest = conn.query_params["digest"]
 
     # Must have a content-length, it may be 0 depending on if a final chunk is being uploaded or not with the digest.
-    with :ok <- maybe_upload_final_chunk(conn, registry, repo, uuid),
-         {:ok, location} <- Registry.complete_blob_upload(registry, repo, uuid, digest) do
+    with :ok <- maybe_upload_final_chunk(conn, registry, repo, uuid, ctx),
+         {:ok, location} <- Registry.complete_blob_upload(registry, repo, uuid, digest, ctx) do
       conn
       |> put_resp_header("location", location)
       |> send_resp(201, "")
     end
   end
 
-  defp dispatch(%{method: "DELETE"} = conn, :blobs_uploads, registry, repo, uuid) do
-    with :ok <- Registry.cancel_blob_upload(registry, repo, uuid) do
+  defp dispatch(%{method: "DELETE"} = conn, :blobs_uploads, registry, repo, uuid, ctx) do
+    with :ok <- Registry.cancel_blob_upload(registry, repo, uuid, ctx) do
       send_resp(conn, 204, "")
     end
   end
 
-  defp dispatch(%{method: "HEAD"} = conn, :blobs, registry, repo, digest) do
-    if Registry.blob_exists?(registry, repo, digest) do
+  defp dispatch(%{method: "HEAD"} = conn, :blobs, registry, repo, digest, ctx) do
+    if Registry.blob_exists?(registry, repo, digest, ctx) do
       conn |> send_resp(200, "")
     else
       {:error, :BLOB_UNKNOWN, %{blob: digest}}
     end
   end
 
-  defp dispatch(%{method: "GET"} = conn, :blobs, registry, repo, digest) do
-    with {:ok, content} <- Registry.get_blob(registry, repo, digest) do
+  defp dispatch(%{method: "GET"} = conn, :blobs, registry, repo, digest, ctx) do
+    with {:ok, content} <- Registry.get_blob(registry, repo, digest, ctx) do
       conn
       |> put_resp_header("content-length", "#{byte_size(content)}")
       |> send_resp(200, content)
     end
   end
 
-  defp dispatch(%{method: "DELETE"} = conn, :blobs, registry, repo, digest) do
-    with :ok <- Registry.delete_blob(registry, repo, digest) do
+  defp dispatch(%{method: "DELETE"} = conn, :blobs, registry, repo, digest, ctx) do
+    with :ok <- Registry.delete_blob(registry, repo, digest, ctx) do
       send_resp(conn, 202, "")
     end
   end
 
-  defp dispatch(%{method: "PUT"} = conn, :manifests, registry, repo, reference) do
+  defp dispatch(%{method: "PUT"} = conn, :manifests, registry, repo, reference, ctx) do
     manifest = conn.params
     manifest_digest = conn.assigns[:oci_digest]
 
-    with :ok <- Registry.store_manifest(registry, repo, reference, manifest, manifest_digest) do
+    with :ok <- Registry.store_manifest(registry, repo, reference, manifest, manifest_digest, ctx) do
       conn
       |> put_resp_header("location", Registry.manifests_reference_path(repo, reference))
       |> send_resp(201, "")
     end
   end
 
-  defp dispatch(%{method: "GET"} = conn, :manifests, registry, repo, reference) do
-    with {:ok, manifest, content_type} <- Registry.get_manifest(registry, repo, reference) do
+  defp dispatch(%{method: "GET"} = conn, :manifests, registry, repo, reference, ctx) do
+    with {:ok, manifest, content_type} <- Registry.get_manifest(registry, repo, reference, ctx) do
       conn
       |> put_resp_header("content-type", content_type)
       |> send_resp(200, manifest)
     end
   end
 
-  defp dispatch(%{method: "HEAD"} = conn, :manifests, registry, repo, reference) do
-    if Registry.manifest_exists?(registry, repo, reference) do
+  defp dispatch(%{method: "HEAD"} = conn, :manifests, registry, repo, reference, ctx) do
+    if Registry.manifest_exists?(registry, repo, reference, ctx) do
       conn |> send_resp(200, "")
     else
       {:error, :MANIFEST_UNKNOWN, %{repo: repo, reference: reference}}
     end
   end
 
-  defp dispatch(%{method: "DELETE"} = conn, :manifests, registry, repo, reference) do
-    with :ok <- Registry.delete_manifest(registry, repo, reference) do
+  defp dispatch(%{method: "DELETE"} = conn, :manifests, registry, repo, reference, ctx) do
+    with :ok <- Registry.delete_manifest(registry, repo, reference, ctx) do
       conn
       |> put_status(202)
       |> send_resp(202, "")
     end
   end
 
-  defp dispatch(conn, _endpoint, _registry, _repo, _id) do
+  defp dispatch(conn, _endpoint, _registry, _repo, _id, _ctx) do
     method = conn.method
     path = conn.request_path
 
@@ -287,7 +292,7 @@ defmodule OCI.Plug.Handler do
     |> send_resp(error.http_status, body)
   end
 
-  defp maybe_upload_final_chunk(conn, registry, repo, uuid) do
+  defp maybe_upload_final_chunk(conn, registry, repo, uuid, ctx) do
     # The Content-Length header is required, but may be 0 if no final chunk is being uploaded.
     conn
     |> get_req_header("content-length")
@@ -305,7 +310,8 @@ defmodule OCI.Plug.Handler do
                repo,
                uuid,
                conn.assigns[:oci_blob_chunk],
-               nil
+               nil,
+               ctx
              ) do
           {:ok, _, _} -> :ok
           {:error, reason} -> {:error, reason}

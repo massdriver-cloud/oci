@@ -64,11 +64,6 @@ defmodule OCI.Auth.Static do
   end
 
   @impl true
-  def challenge(registry) do
-    {"Basic", ~s(realm="#{registry.realm}")}
-  end
-
-  @impl true
   def authorize(_, %OCI.Context{endpoint: :ping}), do: :ok
 
   def authorize(%__MODULE__{users: users}, %OCI.Context{} = ctx) do
@@ -91,6 +86,11 @@ defmodule OCI.Auth.Static do
       _ ->
         {:error, :DENIED}
     end
+  end
+
+  @impl true
+  def challenge(registry) do
+    {"Basic", ~s(realm="#{registry.realm}")}
   end
 
   defp required_action("GET", _), do: "pull"
