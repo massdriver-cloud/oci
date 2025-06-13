@@ -177,7 +177,7 @@ defmodule OCI.Storage.Adapter do
   @callback list_tags(
               storage :: t(),
               repo :: String.t(),
-              pagination :: OCI.Registry.Pagination.t(),
+              pagination :: OCI.Pagination.t(),
               ctx :: OCI.Context.t()
             ) ::
               {:ok, tags :: [String.t()]}

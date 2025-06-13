@@ -9,7 +9,7 @@ defmodule OCI.Plug.Handler do
   """
   import Plug.Conn
   alias OCI.Registry
-  alias OCI.Registry.Pagination
+  alias OCI.Pagination
 
   def handle(%{halted: true} = conn), do: conn
 

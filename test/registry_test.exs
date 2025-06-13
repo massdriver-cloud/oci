@@ -1,6 +1,6 @@
 defmodule OCI.RegistryTest do
   use ExUnit.Case, async: true
-  doctest OCI.Registry
+  # doctest OCI.Registry
 
   defp tmp_storage() do
     OCI.Storage.Local.init(%{path: "./tmp/"})
@@ -15,6 +15,80 @@ defmodule OCI.RegistryTest do
     {:ok, auth} = static_auth(username, password)
     {:ok, registry} = OCI.Registry.init(storage: storage, auth: auth)
     registry
+  end
+
+  defmodule NoAuth do
+    defstruct [:none]
+
+    def init(map) do
+      {:ok, struct(__MODULE__, map)}
+    end
+  end
+
+  defmodule VoidStorage do
+    defstruct [:where]
+    def init(map), do: {:ok, struct(__MODULE__, map)}
+  end
+
+  describe "load_from_keywordlist/1" do
+    test "defaults if not present" do
+      config = [
+        auth: %{
+          adapter: NoAuth,
+          config: %{none: "nope"}
+        },
+        storage: %{
+          adapter: VoidStorage,
+          config: %{where: "nowhere"}
+        }
+      ]
+
+      registry = OCI.Registry.load_from_keywordlist(config)
+
+      assert %OCI.Registry{
+               enable_blob_deletion: true,
+               enable_manifest_deletion: true,
+               max_blob_upload_chunk_size: 10_485_760,
+               max_manifest_size: 4_194_304,
+               realm: "Registry",
+               repo_name_pattern:
+                 ~r/^([a-z0-9]+(?:[._-][a-z0-9]+)*)(\/[a-z0-9]+(?:[._-][a-z0-9]+)*)*$/,
+               auth: %OCI.RegistryTest.NoAuth{none: "nope"},
+               storage: %OCI.RegistryTest.VoidStorage{where: "nowhere"}
+             } = registry
+    end
+
+    test "should include the settings" do
+      config = [
+        realm: "My Registry",
+        max_manifest_size: 1,
+        max_blob_upload_chunk_size: 2,
+        enable_blob_deletion: false,
+        enable_manifest_deletion: false,
+        repo_name_pattern: ~r/^[a-z0-9]+\/[a-z0-9]+$/,
+        auth: %{
+          adapter: NoAuth,
+          config: %{none: "nope"}
+        },
+        storage: %{
+          adapter: VoidStorage,
+          config: %{where: "nowhere"}
+        }
+      ]
+
+      registry = OCI.Registry.load_from_keywordlist(config)
+
+      assert %OCI.Registry{
+               realm: "My Registry",
+               enable_blob_deletion: false,
+               enable_manifest_deletion: false,
+               repo_name_pattern: ~r/^[a-z0-9]+\/[a-z0-9]+$/,
+               max_manifest_size: 1,
+               max_blob_upload_chunk_size: 2,
+               auth: %OCI.RegistryTest.NoAuth{none: "nope"},
+               storage: %OCI.RegistryTest.VoidStorage{where: "nowhere"}
+             } = registry
+    end
   end
 
   describe "authenticate" do

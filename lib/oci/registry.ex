@@ -19,11 +19,6 @@ defmodule OCI.Registry do
     field :repo_name_pattern, Regex.t(), enforce: false, default: @repo_name_pattern
   end
 
-  typedstruct module: Pagination do
-    field :n, pos_integer(), enforce: false
-    field :last, String.t(), enforce: false
-  end
-
   @doc """
   Returns the API version string used in OCI registry paths.
 
@@ -38,9 +33,7 @@ defmodule OCI.Registry do
   @spec api_version() :: String.t()
   def api_version, do: "v2"
 
-  def load_from_env() do
-    oci_cfg = Application.get_all_env(:oci)
-
+  def load_from_keywordlist(oci_cfg) do
     auth_cfg = Keyword.fetch!(oci_cfg, :auth)
     {:ok, auth} = auth_cfg.adapter.init(auth_cfg.config)
 
@@ -51,6 +44,12 @@ defmodule OCI.Registry do
 
     {:ok, registry} = OCI.Registry.init(registry_opts)
     registry
+  end
+
+  def load_from_env() do
+    :oci
+    |> Application.get_all_env()
+    |> load_from_keywordlist
   end
 
   def authenticate(%{auth: auth}, authorization) do
@@ -83,7 +82,15 @@ defmodule OCI.Registry do
   def init(config) do
     storage = Keyword.fetch!(config, :storage)
     auth = Keyword.fetch!(config, :auth)
-    {:ok, %__MODULE__{storage: storage, auth: auth}}
+    reg = %__MODULE__{storage: storage, auth: auth}
+
+    # Update struct with any additional configuration options
+    reg =
+      Enum.reduce(config, reg, fn
+        {key, value}, acc -> Map.put(acc, key, value)
+      end)
+
+    {:ok, reg}
   end
 
   def repo_exists?(%{storage: storage}, repo, ctx) do
