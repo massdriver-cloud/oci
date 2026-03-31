@@ -65,14 +65,21 @@ defmodule OCI.Plug.Parser do
     end
   end
 
-  def parse(conn, "application", "vnd.oci.image.manifest.v1+json", _headers, opts) do
+  def parse(conn, "application", "vnd.oci.image.manifest.v1+json", headers, opts) do
+    parse_oci_manifest(conn, headers, opts)
+  end
+
+  def parse(conn, "application", "vnd.oci.image.index.v1+json", headers, opts) do
+    parse_oci_manifest(conn, headers, opts)
+  end
+
+  def parse(conn, _type, _subtype, _headers, _opts), do: {:next, conn}
+
+  defp parse_oci_manifest(conn, _headers, opts) do
     read_full_body(conn, opts, "")
     |> case do
       {:ok, full_body, conn} ->
         digest = :crypto.hash(:sha256, full_body) |> Base.encode16(case: :lower)
-
-        # Note: this is not the 'digest' as is in the query string, but the byte-for-byte digest of the body.
-        # before it is ready by the json decoder.
         conn = Plug.Conn.assign(conn, :oci_digest, "sha256:#{digest}")
 
         decoder = Keyword.fetch!(opts, :json_decoder)
@@ -89,8 +96,6 @@ defmodule OCI.Plug.Parser do
         err
     end
   end
-
-  def parse(conn, _type, _subtype, _headers, _opts), do: {:next, conn}
 
   @spec read_full_body(Plug.Conn.t(), opts(), String.t()) ::
           {:ok, String.t(), Plug.Conn.t()} | {:error, term()}

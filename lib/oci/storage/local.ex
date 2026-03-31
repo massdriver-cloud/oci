@@ -223,54 +223,19 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def store_manifest(storage, repo, reference, manifest, manifest_digest, ctx) do
-    blobs = [manifest["config"]["digest"]] ++ Enum.map(manifest["layers"], & &1["digest"])
+  def store_manifest(storage, repo, reference, manifest, manifest_digest, _ctx) do
+    manifest_json = Jason.encode!(manifest)
 
-    # YOU ARE HERE
+    :ok = File.mkdir_p!(manifests_dir(storage, repo))
+    File.write!(digest_path(storage, repo, manifest_digest), manifest_json)
 
-    # IMPLEMENT IT HERE FIRST AND SEE HOW MUCH IT IS LAME.
-    # We need to store image indexes as well, it would be nice for the registry layer to
-    # handle as much of this as possible so we dont have to reimpl index v image in ever storage layer.
-
-    # PROBABLY SHOULD SET THE PATTERN AS PATTERN MATCHING ON THE PRESENTS OF SUBJECT OR THE
-    # See "Where is the error occurring?" chat session.
-
-    # The problem is that the code is trying to process manifest["layers"] with Enum.map(), but manifest["layers"] is nil. This is happening because the manifest being processed is an OCI Image Index (with mediaType: "application/vnd.oci.image.index.v1+json"), not an OCI Image Manifest.
-    # The key difference is:
-
-    # OCI Image Manifest has:
-    # config field (single config object)
-    # layers field (array of layers)
-
-    # OCI Image Index has:
-    # manifests field (array of manifests)
-    # No config field
-    # No layers field
-
-    # When the code tries to access manifest["layers"] on an Image Index, it gets nil, and then Enum.map(nil, ...) fails with the Protocol.UndefinedError because nil doesn't implement the Enumerable protocol.
-    # The store_manifest function needs to be updated to handle both manifest types - Image Manifests and Image Index manifests - differently, since they have different structures and blob validation requirements.
-
-    if Enum.any?(blobs, fn digest ->
-         !blob_exists?(storage, repo, digest, ctx)
-       end) do
-      # TODO; return which blobs are missing.
-      # TODO: is this the right error or MANIFEST_INVALID?
-      {:error, :MANIFEST_BLOB_UNKNOWN, ""}
-    else
-      # Store manifest by digest
-      manifest_json = Jason.encode!(manifest)
-
-      :ok = File.mkdir_p!(manifests_dir(storage, repo))
-      File.write!(digest_path(storage, repo, manifest_digest), manifest_json)
-
-      # If reference is a tag, create a tag reference
-      if !String.starts_with?(reference, "sha256:") do
-        :ok = File.mkdir_p!(tags_dir(storage, repo))
-        File.write!(tag_path(storage, repo, reference), manifest_digest)
-      end
-
-      :ok
+    # If reference is a tag, create a tag reference
+    if !String.starts_with?(reference, "sha256:") do
+      :ok = File.mkdir_p!(tags_dir(storage, repo))
+      File.write!(tag_path(storage, repo, reference), manifest_digest)
     end
+
+    :ok
   end
 
   @impl true

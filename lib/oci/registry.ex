@@ -207,15 +207,39 @@ defmodule OCI.Registry do
   end
 
   def store_manifest(%{storage: storage}, repo, reference, manifest, manifest_digest, ctx) do
-    adapter(storage).store_manifest(
-      storage,
-      repo,
-      reference,
-      manifest,
-      manifest_digest,
-      ctx
-    )
+    required_blobs = referenced_blobs(manifest)
+
+    missing =
+      Enum.filter(required_blobs, fn digest ->
+        !adapter(storage).blob_exists?(storage, repo, digest, ctx)
+      end)
+
+    if missing != [] do
+      {:error, :MANIFEST_BLOB_UNKNOWN, %{missing: missing}}
+    else
+      adapter(storage).store_manifest(
+        storage,
+        repo,
+        reference,
+        manifest,
+        manifest_digest,
+        ctx
+      )
+    end
   end
+
+  @doc """
+  Extracts the list of blob digests referenced by a manifest.
+
+  Image manifests reference a config blob and layer blobs.
+  Image indexes reference other manifests (not blobs), so they return an empty list.
+  """
+  def referenced_blobs(%{"layers" => layers, "config" => config}) when is_list(layers) do
+    [config["digest"] | Enum.map(layers, & &1["digest"])]
+    |> Enum.reject(&is_nil/1)
+  end
+
+  def referenced_blobs(_manifest), do: []
 
   def get_manifest(%{storage: storage}, repo, reference, ctx) do
     adapter(storage).get_manifest(storage, repo, reference, ctx)
@@ -226,12 +250,10 @@ defmodule OCI.Registry do
   end
 
   def list_tags(%{storage: storage}, repo, pagination, ctx) do
-    # YOU ARE HERE --> adding support for referrers, we need to parse the OCI Subject its being attached
-    # to and manage a reverse index.
     # TODO:
     # * [x] validate name
     # * [x] format json({name, tags})
-    # * [ ] stub OCI-Subject so the fluke test will pass
+    # * [x] stub OCI-Subject so the conformance test passes (handler.ex)
     # * [-] handle Link header logic.
     # * [ ] referrers support (uncomment tests in 03_discovery)
 

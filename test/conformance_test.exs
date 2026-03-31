@@ -42,6 +42,6 @@ defmodule OCI.ConformanceTest do
         end
       end
 
-    Module.eval_quoted(__MODULE__, quote)
+    Code.eval_quoted(quote, [], __ENV__)
   end)
 end

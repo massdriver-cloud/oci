@@ -239,7 +239,7 @@ defmodule OCI.Plug.Handler do
     manifest_digest = conn.assigns[:oci_digest]
 
     with :ok <- Registry.store_manifest(registry, repo, reference, manifest, manifest_digest, ctx) do
-      # TODO: hack bypass OCI-Subject tests for now (impl coming in next PR, but it blocks LIST Tag tests)
+      # TODO: OCI-Subject is read directly from the manifest body. Replace with proper referrers index lookup.
       maybe_set_oci_subject = fn conn ->
         case get_in(conn.params, ["subject", "digest"]) do
           nil ->
