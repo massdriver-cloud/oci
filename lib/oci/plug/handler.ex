@@ -127,7 +127,7 @@ defmodule OCI.Plug.Handler do
           {:ok, _, _} ->
             :ok
 
-          # TODO: we are swallowing this error!!! Yikes.
+          # Swallowed error: https://github.com/massdriver-cloud/oci/issues/12
           err ->
             err
         end
