@@ -6,6 +6,21 @@ defmodule OCI.Registry do
 
   use TypedStruct
 
+  @typedoc "Repository name, e.g. `\"myorg/myrepo\"`"
+  @type repo_t :: String.t()
+
+  @typedoc "Content-addressable digest, e.g. `\"sha256:abc123...\"`"
+  @type digest_t :: String.t()
+
+  @typedoc "A tag or digest used to identify a manifest"
+  @type reference_t :: String.t()
+
+  @typedoc "Human-readable tag, e.g. `\"latest\"` or `\"v1.0.0\"`"
+  @type tag_t :: String.t()
+
+  @typedoc "Upload session identifier (UUID)"
+  @type uuid_t :: String.t()
+
   @repo_name_pattern ~r/^([a-z0-9]+(?:[._-][a-z0-9]+)*)(\/[a-z0-9]+(?:[._-][a-z0-9]+)*)*$/
 
   typedstruct do
@@ -64,8 +79,8 @@ defmodule OCI.Registry do
     adapter(auth).challenge(registry)
   end
 
-  @spec validate_repository_name(registry :: t(), repo :: String.t()) ::
-          {:ok, repo :: String.t()} | {:error, :NAME_INVALID, String.t()}
+  @spec validate_repository_name(registry :: t(), repo :: repo_t()) ::
+          {:ok, repo :: repo_t()} | {:error, :NAME_INVALID, String.t()}
 
   def validate_repository_name(registry, repo) do
     if Regex.match?(registry.repo_name_pattern, repo) do
@@ -329,7 +344,7 @@ defmodule OCI.Registry do
       iex> OCI.Registry.verify_digest("hello", "invalid-digest")
       {:error, :DIGEST_INVALID, %{digest: "invalid-digest", msg: "Invalid digest format"}}
   """
-  @spec verify_digest(binary(), String.t()) :: :ok | {:error, :DIGEST_INVALID, map()}
+  @spec verify_digest(binary(), digest_t()) :: :ok | {:error, :DIGEST_INVALID, map()}
   def verify_digest(data, digest) do
     case digest do
       "sha256:" <> hash ->
@@ -376,7 +391,7 @@ defmodule OCI.Registry do
       iex> OCI.Registry.blobs_digest_path("myrepo", "sha256:abc123")
       "/v2/myrepo/blobs/sha256:abc123"
   """
-  @spec blobs_digest_path(String.t(), String.t()) :: String.t()
+  @spec blobs_digest_path(repo_t(), digest_t()) :: String.t()
   def blobs_digest_path(repo, digest) do
     "/#{api_version()}/#{repo}/blobs/#{digest}"
   end
@@ -395,7 +410,7 @@ defmodule OCI.Registry do
       iex> OCI.Registry.manifests_reference_path("library/alpine", "sha256:24dda0a1be6293020e5355d4a09b9a8bb72a8b44c27b0ca8560669b8ed52d3ec")
       "/v2/library/alpine/manifests/sha256:24dda0a1be6293020e5355d4a09b9a8bb72a8b44c27b0ca8560669b8ed52d3ec"
   """
-  @spec manifests_reference_path(String.t(), String.t()) :: String.t()
+  @spec manifests_reference_path(repo_t(), reference_t()) :: String.t()
   def manifests_reference_path(repo, reference) do
     "/#{api_version()}/#{repo}/manifests/#{reference}"
   end
@@ -411,7 +426,7 @@ defmodule OCI.Registry do
       iex> OCI.Registry.blobs_uploads_path("myrepo", "123e4567-e89b-12d3-a456-426614174000")
       "/v2/myrepo/blobs/uploads/123e4567-e89b-12d3-a456-426614174000"
   """
-  @spec blobs_uploads_path(String.t(), String.t()) :: String.t()
+  @spec blobs_uploads_path(repo_t(), uuid_t()) :: String.t()
   def blobs_uploads_path(repo, uuid) do
     "/#{api_version()}/#{repo}/blobs/uploads/#{uuid}"
   end
