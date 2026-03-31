@@ -63,7 +63,10 @@ defmodule OCI.Plug.Handler do
       conn =
         if pag.n != nil and length(tags) == pag.n do
           last = List.last(tags)
-          link = "</#{Registry.api_version()}/#{repo}/tags/list?n=#{pag.n}&last=#{last}>; rel=\"next\""
+
+          link =
+            "</#{Registry.api_version()}/#{repo}/tags/list?n=#{pag.n}&last=#{last}>; rel=\"next\""
+
           put_resp_header(conn, "link", link)
         else
           conn
