@@ -194,6 +194,37 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
+  def list_referrers(storage, repo, subject_digest, _ctx) do
+    path = referrer_path(storage, repo, subject_digest)
+
+    case File.read(path) do
+      {:ok, content} -> {:ok, Jason.decode!(content)}
+      {:error, :enoent} -> {:ok, []}
+    end
+  end
+
+  @impl true
+  def put_referrer(storage, repo, subject_digest, descriptor, _ctx) do
+    dir = referrers_dir(storage, repo)
+    path = referrer_path(storage, repo, subject_digest)
+
+    :ok = File.mkdir_p!(dir)
+
+    existing =
+      case File.read(path) do
+        {:ok, content} -> Jason.decode!(content)
+        {:error, :enoent} -> []
+      end
+
+    # Avoid duplicates by digest
+    unless Enum.any?(existing, &(&1["digest"] == descriptor["digest"])) do
+      File.write!(path, Jason.encode!(existing ++ [descriptor]))
+    end
+
+    :ok
+  end
+
+  @impl true
   def list_tags(storage, repo, pagination, _ctx) do
     paginated_tags =
       storage
@@ -299,6 +330,14 @@ defmodule OCI.Storage.Local do
 
   defp manifests_dir(storage, repo) do
     Path.join([repo_dir(storage, repo), "manifests"])
+  end
+
+  defp referrers_dir(storage, repo) do
+    Path.join([repo_dir(storage, repo), "referrers"])
+  end
+
+  defp referrer_path(storage, repo, subject_digest) do
+    Path.join([referrers_dir(storage, repo), subject_digest])
   end
 
   defp repo_dir(storage, repo) do

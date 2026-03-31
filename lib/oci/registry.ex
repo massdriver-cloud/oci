@@ -217,14 +217,18 @@ defmodule OCI.Registry do
     if missing != [] do
       {:error, :MANIFEST_BLOB_UNKNOWN, %{missing: missing}}
     else
-      adapter(storage).store_manifest(
-        storage,
-        repo,
-        reference,
-        manifest,
-        manifest_digest,
-        ctx
-      )
+      with :ok <-
+             adapter(storage).store_manifest(
+               storage,
+               repo,
+               reference,
+               manifest,
+               manifest_digest,
+               ctx
+             ) do
+        maybe_index_referrer(storage, repo, manifest, manifest_digest, ctx)
+        :ok
+      end
     end
   end
 
@@ -234,6 +238,43 @@ defmodule OCI.Registry do
   Image manifests reference a config blob and layer blobs.
   Image indexes reference other manifests (not blobs), so they return an empty list.
   """
+  def list_referrers(%{storage: storage}, repo, digest, ctx) do
+    adapter(storage).list_referrers(storage, repo, digest, ctx)
+  end
+
+  defp maybe_index_referrer(storage, repo, manifest, manifest_digest, ctx) do
+    case manifest["subject"] do
+      %{"digest" => subject_digest} when is_binary(subject_digest) ->
+        descriptor = build_referrer_descriptor(manifest, manifest_digest)
+        adapter(storage).put_referrer(storage, repo, subject_digest, descriptor, ctx)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp build_referrer_descriptor(manifest, manifest_digest) do
+    manifest_json = Jason.encode!(manifest)
+
+    artifact_type =
+      manifest["artifactType"] || get_in(manifest, ["config", "mediaType"])
+
+    descriptor = %{
+      "mediaType" => manifest["mediaType"],
+      "digest" => manifest_digest,
+      "size" => byte_size(manifest_json),
+      "artifactType" => artifact_type
+    }
+
+    case manifest["annotations"] do
+      annotations when is_map(annotations) and map_size(annotations) > 0 ->
+        Map.put(descriptor, "annotations", annotations)
+
+      _ ->
+        descriptor
+    end
+  end
+
   def referenced_blobs(%{"layers" => layers, "config" => config}) when is_list(layers) do
     [config["digest"] | Enum.map(layers, & &1["digest"])]
     |> Enum.reject(&is_nil/1)
@@ -253,9 +294,9 @@ defmodule OCI.Registry do
     # TODO:
     # * [x] validate name
     # * [x] format json({name, tags})
-    # * [x] stub OCI-Subject so the conformance test passes (handler.ex)
+    # * [x] OCI-Subject header on manifest PUT (handler.ex)
     # * [-] handle Link header logic.
-    # * [ ] referrers support (uncomment tests in 03_discovery)
+    # * [x] referrers support (GET /v2/<name>/referrers/<digest>)
 
     if repo_exists?(storage, repo, ctx) do
       adapter(storage).list_tags(storage, repo, pagination, ctx)

@@ -23,6 +23,7 @@ defmodule OCI.Plug.Context do
         [uuid, "uploads", "blobs" | rest] -> {rest, :blobs_uploads, uuid}
         [digest, "blobs" | rest] -> {rest, :blobs, digest}
         [reference, "manifests" | rest] -> {rest, :manifests, reference}
+        [digest, "referrers" | rest] -> {rest, :referrers, digest}
       end
 
     # Reverse the path info, and the last parts after the known API path portions is the repo name.
