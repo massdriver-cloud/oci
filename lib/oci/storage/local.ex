@@ -195,21 +195,15 @@ defmodule OCI.Storage.Local do
 
   @impl true
   def list_tags(storage, repo, pagination, _ctx) do
-    if File.dir?(tags_dir(storage, repo)) do
-      tags =
-        tags_dir(storage, repo)
-        |> File.ls!()
-        |> Enum.sort()
+    paginated_tags =
+      storage
+      |> tags_dir(repo)
+      |> File.ls!()
+      |> Enum.sort()
+      |> cursor(pagination.last)
+      |> limit(pagination.n)
 
-      paginated_tags =
-        tags
-        |> cursor(pagination.last)
-        |> limit(pagination.n)
-
-      {:ok, paginated_tags}
-    else
-      {:error, :NAME_UNKNOWN}
-    end
+    {:ok, paginated_tags}
   end
 
   @impl true
@@ -231,6 +225,30 @@ defmodule OCI.Storage.Local do
   @impl true
   def store_manifest(storage, repo, reference, manifest, manifest_digest, ctx) do
     blobs = [manifest["config"]["digest"]] ++ Enum.map(manifest["layers"], & &1["digest"])
+
+    # YOU ARE HERE
+
+    # IMPLEMENT IT HERE FIRST AND SEE HOW MUCH IT IS LAME.
+    # We need to store image indexes as well, it would be nice for the registry layer to
+    # handle as much of this as possible so we dont have to reimpl index v image in ever storage layer.
+
+    # PROBABLY SHOULD SET THE PATTERN AS PATTERN MATCHING ON THE PRESENTS OF SUBJECT OR THE
+    # See "Where is the error occurring?" chat session.
+
+    # The problem is that the code is trying to process manifest["layers"] with Enum.map(), but manifest["layers"] is nil. This is happening because the manifest being processed is an OCI Image Index (with mediaType: "application/vnd.oci.image.index.v1+json"), not an OCI Image Manifest.
+    # The key difference is:
+
+    # OCI Image Manifest has:
+    # config field (single config object)
+    # layers field (array of layers)
+
+    # OCI Image Index has:
+    # manifests field (array of manifests)
+    # No config field
+    # No layers field
+
+    # When the code tries to access manifest["layers"] on an Image Index, it gets nil, and then Enum.map(nil, ...) fails with the Protocol.UndefinedError because nil doesn't implement the Enumerable protocol.
+    # The store_manifest function needs to be updated to handle both manifest types - Image Manifests and Image Index manifests - differently, since they have different structures and blob validation requirements.
 
     if Enum.any?(blobs, fn digest ->
          !blob_exists?(storage, repo, digest, ctx)

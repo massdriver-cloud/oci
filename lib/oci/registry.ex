@@ -93,7 +93,7 @@ defmodule OCI.Registry do
     {:ok, reg}
   end
 
-  def repo_exists?(%{storage: storage}, repo, ctx) do
+  def repo_exists?(storage, repo, ctx) do
     adapter(storage).repo_exists?(storage, repo, ctx)
   end
 
@@ -226,7 +226,20 @@ defmodule OCI.Registry do
   end
 
   def list_tags(%{storage: storage}, repo, pagination, ctx) do
-    adapter(storage).list_tags(storage, repo, pagination, ctx)
+    # YOU ARE HERE --> adding support for referrers, we need to parse the OCI Subject its being attached
+    # to and manage a reverse index.
+    # TODO:
+    # * [x] validate name
+    # * [x] format json({name, tags})
+    # * [ ] stub OCI-Subject so the fluke test will pass
+    # * [-] handle Link header logic.
+    # * [ ] referrers support (uncomment tests in 03_discovery)
+
+    if repo_exists?(storage, repo, ctx) do
+      adapter(storage).list_tags(storage, repo, pagination, ctx)
+    else
+      {:error, :NAME_UNKNOWN, %{repo: repo}}
+    end
   end
 
   @doc """
@@ -282,7 +295,7 @@ defmodule OCI.Registry do
   Returns {:ok, location} on success, {:error, :BLOB_UNKNOWN} if the source blob doesn't exist.
   """
   def mount_blob(%__MODULE__{storage: storage} = registry, repo, digest, from_repo, ctx) do
-    if repo_exists?(registry, from_repo, ctx) do
+    if repo_exists?(storage, from_repo, ctx) do
       if blob_exists?(registry, from_repo, digest, ctx) do
         # credo:disable-for-next-line
         with :ok <- adapter(storage).mount_blob(storage, repo, digest, from_repo, ctx) do

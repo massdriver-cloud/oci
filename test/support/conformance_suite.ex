@@ -72,7 +72,7 @@ defmodule ConformanceSuite do
       {"OCI_PASSWORD", "mypass"},
       {"OCI_TEST_PULL", "1"},
       {"OCI_TEST_PUSH", "1"},
-      {"OCI_TEST_CONTENT_DISCOVERY", "0"},
+      {"OCI_TEST_CONTENT_DISCOVERY", "1"},
       {"OCI_TEST_CONTENT_MANAGEMENT", "0"},
       {"OCI_AUTOMATIC_CROSSMOUNT", "0"},
       {"OCI_DELETE_MANIFEST_BEFORE_BLOBS", "0"},
