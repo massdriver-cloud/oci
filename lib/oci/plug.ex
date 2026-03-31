@@ -24,16 +24,13 @@ defmodule OCI.Plug do
   @impl true
   def call(%{script_name: [@api_version]} = conn, %{registry: registry}) do
     conn
+    |> maybe_enable_inspection()
     |> OCI.Plug.Context.call()
     |> put_private(:oci_registry, registry)
     |> authenticate()
     |> fetch_query_params()
     |> authorize()
-    # |> OCI.Inspector.log_info(nil, "before:handle/1")
-    |> OCI.Inspector.inspect("before:handle/1")
     |> OCI.Plug.Handler.handle()
-
-    # |> OCI.Inspector.log_info(nil, "after:handle/1")
   end
 
   def call(conn, _opts) do
@@ -97,5 +94,15 @@ defmodule OCI.Plug do
     |> put_resp_content_type("application/json")
     |> send_resp(error.http_status, body)
     |> halt()
+  end
+
+  defp maybe_enable_inspection(conn) do
+    if System.get_env("OCI_TEST_ENABLE_HTTP_PRY") == "true" do
+      # You can set this inspect call anywhere on the conn and it will trigger
+      # Inspector.pry calls wherever they are placed based on the HTTP request.
+      conn |> OCI.Inspector.inspect("OCI_TEST_ENABLE_HTTP_PRY enabled!")
+    else
+      conn
+    end
   end
 end

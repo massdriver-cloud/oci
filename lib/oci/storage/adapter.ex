@@ -232,6 +232,33 @@ defmodule OCI.Storage.Adapter do
               | {:error, atom(), error_details_t}
 
   @doc """
+  Lists manifest descriptors that reference the given subject digest.
+
+  The `filters` map may contain:
+    - `"artifactType"` - filter referrers by artifact type
+  """
+  @callback list_referrers(
+              storage :: t(),
+              repo :: String.t(),
+              subject_digest :: String.t(),
+              filters :: map(),
+              ctx :: OCI.Context.t()
+            ) ::
+              {:ok, [map()]}
+
+  @doc """
+  Stores a referrer descriptor for a given subject digest.
+  """
+  @callback put_referrer(
+              storage :: t(),
+              repo :: String.t(),
+              subject_digest :: String.t(),
+              descriptor :: map(),
+              ctx :: OCI.Context.t()
+            ) ::
+              :ok
+
+  @doc """
   Checks if an upload exists.
   """
   @callback upload_exists?(

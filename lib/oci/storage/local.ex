@@ -194,22 +194,56 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def list_tags(storage, repo, pagination, _ctx) do
-    if File.dir?(tags_dir(storage, repo)) do
-      tags =
-        tags_dir(storage, repo)
-        |> File.ls!()
-        |> Enum.sort()
+  def list_referrers(storage, repo, subject_digest, filters, _ctx) do
+    path = referrer_path(storage, repo, subject_digest)
 
-      paginated_tags =
-        tags
-        |> cursor(pagination.last)
-        |> limit(pagination.n)
+    referrers =
+      case File.read(path) do
+        {:ok, content} -> Jason.decode!(content)
+        {:error, :enoent} -> []
+      end
 
-      {:ok, paginated_tags}
-    else
-      {:error, :NAME_UNKNOWN}
+    filtered =
+      case Map.get(filters, "artifactType") do
+        nil -> referrers
+        artifact_type -> Enum.filter(referrers, &(&1["artifactType"] == artifact_type))
+      end
+
+    {:ok, filtered}
+  end
+
+  @impl true
+  def put_referrer(storage, repo, subject_digest, descriptor, _ctx) do
+    dir = referrers_dir(storage, repo)
+    path = referrer_path(storage, repo, subject_digest)
+
+    :ok = File.mkdir_p!(dir)
+
+    existing =
+      case File.read(path) do
+        {:ok, content} -> Jason.decode!(content)
+        {:error, :enoent} -> []
+      end
+
+    # Avoid duplicates by digest
+    unless Enum.any?(existing, &(&1["digest"] == descriptor["digest"])) do
+      File.write!(path, Jason.encode!(existing ++ [descriptor]))
     end
+
+    :ok
+  end
+
+  @impl true
+  def list_tags(storage, repo, pagination, _ctx) do
+    paginated_tags =
+      storage
+      |> tags_dir(repo)
+      |> File.ls!()
+      |> Enum.sort()
+      |> cursor(pagination.last)
+      |> limit(pagination.n)
+
+    {:ok, paginated_tags}
   end
 
   @impl true
@@ -229,30 +263,19 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def store_manifest(storage, repo, reference, manifest, manifest_digest, ctx) do
-    blobs = [manifest["config"]["digest"]] ++ Enum.map(manifest["layers"], & &1["digest"])
+  def store_manifest(storage, repo, reference, manifest, manifest_digest, _ctx) do
+    manifest_json = Jason.encode!(manifest)
 
-    if Enum.any?(blobs, fn digest ->
-         !blob_exists?(storage, repo, digest, ctx)
-       end) do
-      # TODO; return which blobs are missing.
-      # TODO: is this the right error or MANIFEST_INVALID?
-      {:error, :MANIFEST_BLOB_UNKNOWN, ""}
-    else
-      # Store manifest by digest
-      manifest_json = Jason.encode!(manifest)
+    :ok = File.mkdir_p!(manifests_dir(storage, repo))
+    File.write!(digest_path(storage, repo, manifest_digest), manifest_json)
 
-      :ok = File.mkdir_p!(manifests_dir(storage, repo))
-      File.write!(digest_path(storage, repo, manifest_digest), manifest_json)
-
-      # If reference is a tag, create a tag reference
-      if !String.starts_with?(reference, "sha256:") do
-        :ok = File.mkdir_p!(tags_dir(storage, repo))
-        File.write!(tag_path(storage, repo, reference), manifest_digest)
-      end
-
-      :ok
+    # If reference is a tag, create a tag reference
+    if !String.starts_with?(reference, "sha256:") do
+      :ok = File.mkdir_p!(tags_dir(storage, repo))
+      File.write!(tag_path(storage, repo, reference), manifest_digest)
     end
+
+    :ok
   end
 
   @impl true
@@ -316,6 +339,14 @@ defmodule OCI.Storage.Local do
 
   defp manifests_dir(storage, repo) do
     Path.join([repo_dir(storage, repo), "manifests"])
+  end
+
+  defp referrers_dir(storage, repo) do
+    Path.join([repo_dir(storage, repo), "referrers"])
+  end
+
+  defp referrer_path(storage, repo, subject_digest) do
+    Path.join([referrers_dir(storage, repo), subject_digest])
   end
 
   defp repo_dir(storage, repo) do

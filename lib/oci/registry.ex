@@ -93,7 +93,7 @@ defmodule OCI.Registry do
     {:ok, reg}
   end
 
-  def repo_exists?(%{storage: storage}, repo, ctx) do
+  def repo_exists?(storage, repo, ctx) do
     adapter(storage).repo_exists?(storage, repo, ctx)
   end
 
@@ -207,15 +207,80 @@ defmodule OCI.Registry do
   end
 
   def store_manifest(%{storage: storage}, repo, reference, manifest, manifest_digest, ctx) do
-    adapter(storage).store_manifest(
-      storage,
-      repo,
-      reference,
-      manifest,
-      manifest_digest,
-      ctx
-    )
+    required_blobs = referenced_blobs(manifest)
+
+    missing =
+      Enum.filter(required_blobs, fn digest ->
+        !adapter(storage).blob_exists?(storage, repo, digest, ctx)
+      end)
+
+    if missing != [] do
+      {:error, :MANIFEST_BLOB_UNKNOWN, %{missing: missing}}
+    else
+      with :ok <-
+             adapter(storage).store_manifest(
+               storage,
+               repo,
+               reference,
+               manifest,
+               manifest_digest,
+               ctx
+             ) do
+        maybe_index_referrer(storage, repo, manifest, manifest_digest, ctx)
+        :ok
+      end
+    end
   end
+
+  @doc """
+  Extracts the list of blob digests referenced by a manifest.
+
+  Image manifests reference a config blob and layer blobs.
+  Image indexes reference other manifests (not blobs), so they return an empty list.
+  """
+  def list_referrers(%{storage: storage}, repo, digest, filters, ctx) do
+    adapter(storage).list_referrers(storage, repo, digest, filters, ctx)
+  end
+
+  defp maybe_index_referrer(storage, repo, manifest, manifest_digest, ctx) do
+    case manifest["subject"] do
+      %{"digest" => subject_digest} when is_binary(subject_digest) ->
+        descriptor = build_referrer_descriptor(manifest, manifest_digest)
+        adapter(storage).put_referrer(storage, repo, subject_digest, descriptor, ctx)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp build_referrer_descriptor(manifest, manifest_digest) do
+    manifest_json = Jason.encode!(manifest)
+
+    artifact_type =
+      manifest["artifactType"] || get_in(manifest, ["config", "mediaType"])
+
+    descriptor = %{
+      "mediaType" => manifest["mediaType"],
+      "digest" => manifest_digest,
+      "size" => byte_size(manifest_json),
+      "artifactType" => artifact_type
+    }
+
+    case manifest["annotations"] do
+      annotations when is_map(annotations) and map_size(annotations) > 0 ->
+        Map.put(descriptor, "annotations", annotations)
+
+      _ ->
+        descriptor
+    end
+  end
+
+  def referenced_blobs(%{"layers" => layers, "config" => config}) when is_list(layers) do
+    [config["digest"] | Enum.map(layers, & &1["digest"])]
+    |> Enum.reject(&is_nil/1)
+  end
+
+  def referenced_blobs(_manifest), do: []
 
   def get_manifest(%{storage: storage}, repo, reference, ctx) do
     adapter(storage).get_manifest(storage, repo, reference, ctx)
@@ -226,7 +291,11 @@ defmodule OCI.Registry do
   end
 
   def list_tags(%{storage: storage}, repo, pagination, ctx) do
-    adapter(storage).list_tags(storage, repo, pagination, ctx)
+    if repo_exists?(storage, repo, ctx) do
+      adapter(storage).list_tags(storage, repo, pagination, ctx)
+    else
+      {:error, :NAME_UNKNOWN, %{repo: repo}}
+    end
   end
 
   @doc """
@@ -282,7 +351,7 @@ defmodule OCI.Registry do
   Returns {:ok, location} on success, {:error, :BLOB_UNKNOWN} if the source blob doesn't exist.
   """
   def mount_blob(%__MODULE__{storage: storage} = registry, repo, digest, from_repo, ctx) do
-    if repo_exists?(registry, from_repo, ctx) do
+    if repo_exists?(storage, from_repo, ctx) do
       if blob_exists?(registry, from_repo, digest, ctx) do
         # credo:disable-for-next-line
         with :ok <- adapter(storage).mount_blob(storage, repo, digest, from_repo, ctx) do

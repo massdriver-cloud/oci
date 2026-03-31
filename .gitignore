@@ -33,4 +33,5 @@ TODO.md
 
 # Local things
 .elixir_ls
+.claude/settings.local.json
 priv/plts

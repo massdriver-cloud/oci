@@ -57,7 +57,21 @@ defmodule OCI.Plug.Handler do
           ctx :: OCI.Context.t()
         ) :: Plug.Conn.t() | {:error, atom()} | {:error, atom(), String.t()}
   defp dispatch(%{method: "GET"} = conn, :tags_list, registry, repo, _id, ctx) do
-    with {:ok, tags} <- Registry.list_tags(registry, repo, pagination(conn.query_params), ctx) do
+    pag = pagination(conn.query_params)
+
+    with {:ok, tags} <- Registry.list_tags(registry, repo, pag, ctx) do
+      conn =
+        if pag.n != nil and length(tags) == pag.n do
+          last = List.last(tags)
+
+          link =
+            "</#{Registry.api_version()}/#{repo}/tags/list?n=#{pag.n}&last=#{last}>; rel=\"next\""
+
+          put_resp_header(conn, "link", link)
+        else
+          conn
+        end
+
       conn
       |> put_resp_content_type("application/json")
       |> send_resp(200, Jason.encode!(%{name: repo, tags: tags}))
@@ -113,7 +127,7 @@ defmodule OCI.Plug.Handler do
           {:ok, _, _} ->
             :ok
 
-          # TODO: we are swallowing this error!!! Yikes.
+          # Swallowed error: https://github.com/massdriver-cloud/oci/issues/12
           err ->
             err
         end
@@ -234,12 +248,50 @@ defmodule OCI.Plug.Handler do
     end
   end
 
+  defp dispatch(%{method: "GET"} = conn, :referrers, registry, repo, digest, ctx) do
+    filters =
+      case conn.query_params["artifactType"] do
+        nil -> %{}
+        artifact_type -> %{"artifactType" => artifact_type}
+      end
+
+    with {:ok, referrers} <- Registry.list_referrers(registry, repo, digest, filters, ctx) do
+      index = %{
+        "schemaVersion" => 2,
+        "mediaType" => "application/vnd.oci.image.index.v1+json",
+        "manifests" => referrers
+      }
+
+      conn =
+        if filters["artifactType"] do
+          put_resp_header(conn, "oci-filters-applied", "artifactType")
+        else
+          conn
+        end
+
+      conn
+      |> put_resp_header("content-type", "application/vnd.oci.image.index.v1+json")
+      |> send_resp(200, Jason.encode!(index))
+    end
+  end
+
   defp dispatch(%{method: "PUT"} = conn, :manifests, registry, repo, reference, ctx) do
     manifest = conn.params
     manifest_digest = conn.assigns[:oci_digest]
 
     with :ok <- Registry.store_manifest(registry, repo, reference, manifest, manifest_digest, ctx) do
+      maybe_set_oci_subject = fn conn ->
+        case get_in(conn.params, ["subject", "digest"]) do
+          nil ->
+            conn
+
+          subject_digest ->
+            put_resp_header(conn, "oci-subject", subject_digest)
+        end
+      end
+
       conn
+      |> maybe_set_oci_subject.()
       |> put_resp_header("location", Registry.manifests_reference_path(repo, reference))
       |> send_resp(201, "")
     end
