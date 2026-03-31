@@ -291,13 +291,6 @@ defmodule OCI.Registry do
   end
 
   def list_tags(%{storage: storage}, repo, pagination, ctx) do
-    # TODO:
-    # * [x] validate name
-    # * [x] format json({name, tags})
-    # * [x] OCI-Subject header on manifest PUT (handler.ex)
-    # * [-] handle Link header logic.
-    # * [x] referrers support (GET /v2/<name>/referrers/<digest>)
-
     if repo_exists?(storage, repo, ctx) do
       adapter(storage).list_tags(storage, repo, pagination, ctx)
     else

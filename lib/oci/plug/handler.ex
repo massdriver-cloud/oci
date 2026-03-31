@@ -57,7 +57,18 @@ defmodule OCI.Plug.Handler do
           ctx :: OCI.Context.t()
         ) :: Plug.Conn.t() | {:error, atom()} | {:error, atom(), String.t()}
   defp dispatch(%{method: "GET"} = conn, :tags_list, registry, repo, _id, ctx) do
-    with {:ok, tags} <- Registry.list_tags(registry, repo, pagination(conn.query_params), ctx) do
+    pag = pagination(conn.query_params)
+
+    with {:ok, tags} <- Registry.list_tags(registry, repo, pag, ctx) do
+      conn =
+        if pag.n != nil and length(tags) == pag.n do
+          last = List.last(tags)
+          link = "</#{Registry.api_version()}/#{repo}/tags/list?n=#{pag.n}&last=#{last}>; rel=\"next\""
+          put_resp_header(conn, "link", link)
+        else
+          conn
+        end
+
       conn
       |> put_resp_content_type("application/json")
       |> send_resp(200, Jason.encode!(%{name: repo, tags: tags}))
@@ -266,7 +277,6 @@ defmodule OCI.Plug.Handler do
     manifest_digest = conn.assigns[:oci_digest]
 
     with :ok <- Registry.store_manifest(registry, repo, reference, manifest, manifest_digest, ctx) do
-      # TODO: OCI-Subject is read directly from the manifest body. Replace with proper referrers index lookup.
       maybe_set_oci_subject = fn conn ->
         case get_in(conn.params, ["subject", "digest"]) do
           nil ->
