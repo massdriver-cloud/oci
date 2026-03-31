@@ -235,24 +235,21 @@ defmodule OCI.Plug.Handler do
   end
 
   defp dispatch(%{method: "GET"} = conn, :referrers, registry, repo, digest, ctx) do
-    with {:ok, referrers} <- Registry.list_referrers(registry, repo, digest, ctx) do
-      artifact_type_filter = conn.query_params["artifactType"]
+    filters =
+      case conn.query_params["artifactType"] do
+        nil -> %{}
+        artifact_type -> %{"artifactType" => artifact_type}
+      end
 
-      {filtered, filter_applied} =
-        if artifact_type_filter do
-          {Enum.filter(referrers, &(&1["artifactType"] == artifact_type_filter)), true}
-        else
-          {referrers, false}
-        end
-
+    with {:ok, referrers} <- Registry.list_referrers(registry, repo, digest, filters, ctx) do
       index = %{
         "schemaVersion" => 2,
         "mediaType" => "application/vnd.oci.image.index.v1+json",
-        "manifests" => filtered
+        "manifests" => referrers
       }
 
       conn =
-        if filter_applied do
+        if filters["artifactType"] do
           put_resp_header(conn, "oci-filters-applied", "artifactType")
         else
           conn

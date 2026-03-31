@@ -238,8 +238,8 @@ defmodule OCI.Registry do
   Image manifests reference a config blob and layer blobs.
   Image indexes reference other manifests (not blobs), so they return an empty list.
   """
-  def list_referrers(%{storage: storage}, repo, digest, ctx) do
-    adapter(storage).list_referrers(storage, repo, digest, ctx)
+  def list_referrers(%{storage: storage}, repo, digest, filters, ctx) do
+    adapter(storage).list_referrers(storage, repo, digest, filters, ctx)
   end
 
   defp maybe_index_referrer(storage, repo, manifest, manifest_digest, ctx) do

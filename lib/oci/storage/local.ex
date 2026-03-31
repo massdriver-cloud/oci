@@ -194,13 +194,22 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def list_referrers(storage, repo, subject_digest, _ctx) do
+  def list_referrers(storage, repo, subject_digest, filters, _ctx) do
     path = referrer_path(storage, repo, subject_digest)
 
-    case File.read(path) do
-      {:ok, content} -> {:ok, Jason.decode!(content)}
-      {:error, :enoent} -> {:ok, []}
-    end
+    referrers =
+      case File.read(path) do
+        {:ok, content} -> Jason.decode!(content)
+        {:error, :enoent} -> []
+      end
+
+    filtered =
+      case Map.get(filters, "artifactType") do
+        nil -> referrers
+        artifact_type -> Enum.filter(referrers, &(&1["artifactType"] == artifact_type))
+      end
+
+    {:ok, filtered}
   end
 
   @impl true
