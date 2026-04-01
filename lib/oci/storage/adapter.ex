@@ -168,7 +168,11 @@ defmodule OCI.Storage.Adapter do
   @doc """
   Initiates a blob upload session.
   """
-  @callback initiate_blob_upload(storage :: t(), repo :: Registry.repo_t(), ctx :: OCI.Context.t()) ::
+  @callback initiate_blob_upload(
+              storage :: t(),
+              repo :: Registry.repo_t(),
+              ctx :: OCI.Context.t()
+            ) ::
               {:ok, upload_id :: Registry.uuid_t()}
               | {:error, term()}
               | {:error, term(), error_details_t}
