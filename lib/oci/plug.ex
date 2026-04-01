@@ -34,7 +34,9 @@ defmodule OCI.Plug do
   end
 
   def call(conn, _opts) do
-    error_resp(conn, :UNSUPPORTED, "OCI Registry must be mounted at /#{Registry.api_version()}")
+    error_resp(conn, :UNSUPPORTED, %{
+      reason: "OCI Registry must be mounted at /#{Registry.api_version()}"
+    })
   end
 
   def authenticate(%{private: %{oci_registry: registry}} = conn) do
@@ -64,16 +66,13 @@ defmodule OCI.Plug do
       :ok ->
         conn
 
-      {:error, reason} ->
-        error_resp(conn, reason, nil)
-
       {:error, reason, details} ->
         error_resp(conn, reason, details)
     end
   end
 
   defp authorize(_) do
-    {:error, :UNAUTHORIZED}
+    {:error, :UNAUTHORIZED, %{}}
   end
 
   defp challenge_resp(conn) do

@@ -38,7 +38,7 @@ defmodule OCI.Auth.Adapter do
   """
   @type subject_t :: any()
 
-  @type error_details_t :: any()
+  @type error_details_t :: map()
 
   @callback init(config :: map()) :: {:ok, t()} | {:error, term()}
 

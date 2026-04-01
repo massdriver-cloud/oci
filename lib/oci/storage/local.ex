@@ -50,7 +50,7 @@ defmodule OCI.Storage.Local do
       File.rm_rf!(upload_dir)
       :ok
     else
-      {:error, :BLOB_UPLOAD_UNKNOWN}
+      {:error, :BLOB_UPLOAD_UNKNOWN, %{repo: repo, uuid: uuid}}
     end
   end
 
@@ -67,12 +67,6 @@ defmodule OCI.Storage.Local do
     with :ok <- OCI.Registry.verify_digest(data, digest),
          :ok <- File.write!(digest_path, data) do
       :ok
-    else
-      {:error, :DIGEST_INVALID} ->
-        {:error, :DIGEST_INVALID}
-
-      _ ->
-        {:error, :BLOB_UPLOAD_UNKNOWN}
     end
   end
 
@@ -84,7 +78,7 @@ defmodule OCI.Storage.Local do
       File.rm!(path)
       :ok
     else
-      {:error, :BLOB_UNKNOWN}
+      {:error, :BLOB_UNKNOWN, %{repo: repo, digest: digest}}
     end
   end
 
@@ -96,7 +90,7 @@ defmodule OCI.Storage.Local do
       File.rm!(manifest_path)
       :ok
     else
-      {:error, :MANIFEST_UNKNOWN}
+      {:error, :MANIFEST_UNKNOWN, %{repo: repo, reference: digest}}
     end
   end
 
@@ -107,7 +101,7 @@ defmodule OCI.Storage.Local do
     if File.exists?(path) do
       {:ok, File.read!(path)}
     else
-      {:error, :BLOB_UNKNOWN}
+      {:error, :BLOB_UNKNOWN, %{repo: repo, digest: digest}}
     end
   end
 
@@ -120,7 +114,7 @@ defmodule OCI.Storage.Local do
         {:ok, manifest, @manifest_v1_content_type}
 
       _ ->
-        {:error, :MANIFEST_UNKNOWN, "Reference `#{reference}` not found for repo #{repo}"}
+        {:error, :MANIFEST_UNKNOWN, %{repo: repo, reference: reference}}
     end
   end
 
@@ -130,7 +124,7 @@ defmodule OCI.Storage.Local do
         get_manifest(storage, repo, digest, ctx)
 
       _ ->
-        {:error, :MANIFEST_UNKNOWN, "Reference `#{tag}` not found for repo #{repo}"}
+        {:error, :MANIFEST_UNKNOWN, %{repo: repo, reference: tag}}
     end
   end
 
@@ -150,7 +144,7 @@ defmodule OCI.Storage.Local do
       range = OCI.Registry.calculate_range(data, 0)
       {:ok, range}
     else
-      {:error, :BLOB_UPLOAD_UNKNOWN}
+      {:error, :BLOB_UPLOAD_UNKNOWN, %{repo: repo, uuid: uuid}}
     end
   end
 
@@ -258,7 +252,7 @@ defmodule OCI.Storage.Local do
       File.cp!(source_path, target_path)
       :ok
     else
-      {:error, :BLOB_UNKNOWN}
+      {:error, :BLOB_UNKNOWN, %{repo: from_repo, digest: digest}}
     end
   end
 

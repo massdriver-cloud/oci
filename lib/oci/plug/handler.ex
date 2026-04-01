@@ -30,15 +30,6 @@ defmodule OCI.Plug.Handler do
           %Plug.Conn{} = conn ->
             conn
 
-          {:error, oci_error_status} ->
-            you_suck_and_are_a_bad_person_messsage = """
-            You suck and are a bad person.
-
-            Please return error details for #{oci_error_status} in #{inspect(ctx)}
-            """
-
-            error_resp(conn, oci_error_status, you_suck_and_are_a_bad_person_messsage)
-
           {:error, oci_error_status, details} ->
             error_resp(conn, oci_error_status, details)
         end
@@ -55,7 +46,7 @@ defmodule OCI.Plug.Handler do
           repo :: String.t(),
           id :: String.t(),
           ctx :: OCI.Context.t()
-        ) :: Plug.Conn.t() | {:error, atom()} | {:error, atom(), String.t()}
+        ) :: Plug.Conn.t() | {:error, atom(), map() | String.t()}
   defp dispatch(%{method: "GET"} = conn, :tags_list, registry, repo, _id, ctx) do
     pag = pagination(conn.query_params)
 
@@ -179,7 +170,7 @@ defmodule OCI.Plug.Handler do
         error_resp(
           conn,
           :BLOB_UPLOAD_INVALID,
-          "Content-Range header is required for PATCH requests"
+          %{reason: "Content-Range header is required for PATCH requests"}
         )
 
       _ ->
@@ -325,7 +316,7 @@ defmodule OCI.Plug.Handler do
     method = conn.method
     path = conn.request_path
 
-    {:error, :UNSUPPORTED, "Unsupported [#{method}] #{path}"}
+    {:error, :UNSUPPORTED, %{method: method, path: path}}
   end
 
   defp pagination(params) do
@@ -366,7 +357,6 @@ defmodule OCI.Plug.Handler do
                ctx
              ) do
           {:ok, _, _} -> :ok
-          {:error, reason} -> {:error, reason}
           {:error, reason, details} -> {:error, reason, details}
         end
     end

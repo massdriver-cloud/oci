@@ -39,7 +39,7 @@ defmodule OCI.Storage.Adapter do
 
   @type t :: struct()
 
-  @type error_details_t :: any()
+  @type error_details_t :: map()
 
   @doc """
   Checks if a blob exists in the repository and returns its size if found.
@@ -62,7 +62,6 @@ defmodule OCI.Storage.Adapter do
               ctx :: OCI.Context.t()
             ) ::
               :ok
-              | {:error, :BLOB_UPLOAD_UNKNOWN}
               | {:error, :BLOB_UPLOAD_UNKNOWN, error_details_t}
 
   @doc """
@@ -75,7 +74,7 @@ defmodule OCI.Storage.Adapter do
               digest :: Registry.digest_t(),
               ctx :: OCI.Context.t()
             ) ::
-              :ok | {:error, atom()} | {:error, atom(), error_details_t}
+              :ok | {:error, atom(), error_details_t}
 
   @doc """
   Deletes a blob from the repository.
@@ -86,7 +85,7 @@ defmodule OCI.Storage.Adapter do
               digest :: Registry.digest_t(),
               ctx :: OCI.Context.t()
             ) ::
-              :ok | {:error, :BLOB_UNKNOWN} | {:error, :BLOB_UNKNOWN, error_details_t}
+              :ok | {:error, :BLOB_UNKNOWN, error_details_t}
 
   @doc """
   Deletes a manifest from the repository.
@@ -97,7 +96,7 @@ defmodule OCI.Storage.Adapter do
               reference :: Registry.reference_t(),
               ctx :: OCI.Context.t()
             ) ::
-              :ok | {:error, atom()}
+              :ok | {:error, atom(), error_details_t}
 
   @doc """
   Retrieves a blob's content from the repository.
@@ -109,7 +108,6 @@ defmodule OCI.Storage.Adapter do
               ctx :: OCI.Context.t()
             ) ::
               {:ok, content :: binary()}
-              | {:error, :BLOB_UNKNOWN}
               | {:error, :BLOB_UNKNOWN, error_details_t}
 
   @doc """
@@ -122,7 +120,7 @@ defmodule OCI.Storage.Adapter do
               ctx :: OCI.Context.t()
             ) ::
               {:ok, manifest :: binary(), content_type :: String.t()}
-              | {:error, atom(), error_details_t}
+              | {:error, :MANIFEST_UNKNOWN, error_details_t}
 
   @doc """
   Gets the status of an ongoing blob upload.
@@ -133,7 +131,7 @@ defmodule OCI.Storage.Adapter do
               uuid :: Registry.uuid_t(),
               ctx :: OCI.Context.t()
             ) ::
-              {:ok, range :: String.t()} | {:error, term()} | {:error, term(), error_details_t}
+              {:ok, range :: String.t()} | {:error, :BLOB_UPLOAD_UNKNOWN, error_details_t}
 
   @doc """
   Gets the total size of an ongoing blob upload.
@@ -145,8 +143,7 @@ defmodule OCI.Storage.Adapter do
               ctx :: OCI.Context.t()
             ) ::
               {:ok, size :: non_neg_integer()}
-              | {:error, term()}
-              | {:error, term(), error_details_t}
+              | {:error, :BLOB_UPLOAD_UNKNOWN, error_details_t}
 
   @doc """
   Gets metadata about a manifest without retrieving its content.
@@ -163,7 +160,7 @@ defmodule OCI.Storage.Adapter do
   Initializes a new storage adapter instance with the given configuration.
   """
   @callback init(config :: map()) ::
-              {:ok, storage :: t()} | {:error, term()} | {:error, term(), error_details_t}
+              {:ok, storage :: t()} | {:error, atom(), error_details_t}
 
   @doc """
   Initiates a blob upload session.
@@ -174,8 +171,7 @@ defmodule OCI.Storage.Adapter do
               ctx :: OCI.Context.t()
             ) ::
               {:ok, upload_id :: Registry.uuid_t()}
-              | {:error, term()}
-              | {:error, term(), error_details_t}
+              | {:error, atom(), error_details_t}
 
   @doc """
   Lists tags in a repository with pagination support.
@@ -187,7 +183,6 @@ defmodule OCI.Storage.Adapter do
               ctx :: OCI.Context.t()
             ) ::
               {:ok, tags :: [Registry.tag_t()]}
-              | {:error, :NAME_UNKNOWN}
               | {:error, :NAME_UNKNOWN, error_details_t}
 
   @doc """
@@ -200,7 +195,7 @@ defmodule OCI.Storage.Adapter do
               from_repo :: Registry.repo_t(),
               ctx :: OCI.Context.t()
             ) ::
-              :ok | {:error, :BLOB_UNKNOWN} | {:error, :BLOB_UNKNOWN, error_details_t}
+              :ok | {:error, :BLOB_UNKNOWN, error_details_t}
 
   @doc """
   Stores a manifest in the repository.
@@ -214,8 +209,7 @@ defmodule OCI.Storage.Adapter do
               ctx :: OCI.Context.t()
             ) ::
               :ok
-              | {:error, :MANIFEST_BLOB_UNKNOWN | :MANIFEST_INVALID | :NAME_UNKNOWN,
-                 error_details_t}
+              | {:error, atom(), error_details_t}
 
   @doc """
   Checks if a repository exists.
@@ -235,7 +229,6 @@ defmodule OCI.Storage.Adapter do
               ctx :: OCI.Context.t()
             ) ::
               {:ok, range :: String.t()}
-              | {:error, atom()}
               | {:error, atom(), error_details_t}
 
   @doc """

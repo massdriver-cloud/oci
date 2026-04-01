@@ -45,21 +45,24 @@ defmodule OCI.Auth.Static do
                   subject = username
                   {:ok, subject}
                 else
-                  {:error, :UNAUTHORIZED, "Invalid username or password"}
+                  {:error, :UNAUTHORIZED, %{reason: "Invalid username or password"}}
                 end
 
               _ ->
                 {:error, :UNAUTHORIZED,
-                 "Invalid authorization format, should be username:password"}
+                 %{reason: "Invalid authorization format, should be username:password"}}
             end
 
           :error ->
             {:error, :UNAUTHORIZED,
-             "Failed to decode authorization, should be base64 encoded username:password"}
+             %{
+               reason:
+                 "Failed to decode authorization, should be base64 encoded username:password"
+             }}
         end
 
       _other ->
-        {:error, :UNSUPPORTED, "Unsupported authentication scheme: #{scheme}"}
+        {:error, :UNSUPPORTED, %{reason: "Unsupported authentication scheme: #{scheme}"}}
     end
   end
 
@@ -73,18 +76,18 @@ defmodule OCI.Auth.Static do
 
         case required_action(ctx.method, ctx.endpoint) do
           nil ->
-            {:error, :DENIED}
+            {:error, :DENIED, %{repo: ctx.repo, method: ctx.method}}
 
           action ->
             if action in repo_perms do
               :ok
             else
-              {:error, :DENIED}
+              {:error, :DENIED, %{repo: ctx.repo, action: action}}
             end
         end
 
       _ ->
-        {:error, :DENIED}
+        {:error, :DENIED, %{subject: ctx.subject}}
     end
   end
 

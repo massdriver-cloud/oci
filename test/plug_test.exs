@@ -111,8 +111,10 @@ defmodule OCI.PlugTest do
                "errors" => [
                  %{
                    "code" => "NAME_INVALID",
-                   "detail" =>
-                     "Invalid repo name: nosinglelevelnames, must match pattern: ~r/^[a-z0-9]+\\/[a-z0-9]+$/.",
+                   "detail" => %{
+                     "repo" => "nosinglelevelnames",
+                     "pattern" => "~r/^[a-z0-9]+\\/[a-z0-9]+$/"
+                   },
                    "message" => "invalid repository name"
                  }
                ]
