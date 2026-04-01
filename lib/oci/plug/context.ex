@@ -12,6 +12,7 @@ defmodule OCI.Plug.Context do
 
   def init(opts), do: opts
 
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def call(conn, _opts \\ []) do
     segments = conn.path_info |> Enum.reverse()
 
