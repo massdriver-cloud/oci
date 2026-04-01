@@ -35,6 +35,8 @@ defmodule OCI.Storage.Adapter do
   ```
   """
 
+  alias OCI.Registry
+
   @type t :: struct()
 
   @type error_details_t :: any()
@@ -44,8 +46,8 @@ defmodule OCI.Storage.Adapter do
   """
   @callback blob_exists?(
               storage :: t(),
-              repo :: String.t(),
-              digest :: String.t(),
+              repo :: Registry.repo_t(),
+              digest :: Registry.digest_t(),
               ctx :: OCI.Context.t()
             ) ::
               boolean()
@@ -55,8 +57,8 @@ defmodule OCI.Storage.Adapter do
   """
   @callback cancel_blob_upload(
               storage :: t(),
-              repo :: String.t(),
-              uuid :: String.t(),
+              repo :: Registry.repo_t(),
+              uuid :: Registry.uuid_t(),
               ctx :: OCI.Context.t()
             ) ::
               :ok
@@ -68,9 +70,9 @@ defmodule OCI.Storage.Adapter do
   """
   @callback complete_blob_upload(
               storage :: t(),
-              repo :: String.t(),
-              upload_id :: String.t(),
-              digest :: String.t(),
+              repo :: Registry.repo_t(),
+              upload_id :: Registry.uuid_t(),
+              digest :: Registry.digest_t(),
               ctx :: OCI.Context.t()
             ) ::
               :ok | {:error, atom()} | {:error, atom(), error_details_t}
@@ -80,8 +82,8 @@ defmodule OCI.Storage.Adapter do
   """
   @callback delete_blob(
               storage :: t(),
-              repo :: String.t(),
-              digest :: String.t(),
+              repo :: Registry.repo_t(),
+              digest :: Registry.digest_t(),
               ctx :: OCI.Context.t()
             ) ::
               :ok | {:error, :BLOB_UNKNOWN} | {:error, :BLOB_UNKNOWN, error_details_t}
@@ -91,8 +93,8 @@ defmodule OCI.Storage.Adapter do
   """
   @callback delete_manifest(
               storage :: t(),
-              repo :: String.t(),
-              reference :: String.t(),
+              repo :: Registry.repo_t(),
+              reference :: Registry.reference_t(),
               ctx :: OCI.Context.t()
             ) ::
               :ok | {:error, atom()}
@@ -102,8 +104,8 @@ defmodule OCI.Storage.Adapter do
   """
   @callback get_blob(
               storage :: t(),
-              repo :: String.t(),
-              digest :: String.t(),
+              repo :: Registry.repo_t(),
+              digest :: Registry.digest_t(),
               ctx :: OCI.Context.t()
             ) ::
               {:ok, content :: binary()}
@@ -115,8 +117,8 @@ defmodule OCI.Storage.Adapter do
   """
   @callback get_manifest(
               storage :: t(),
-              repo :: String.t(),
-              reference :: String.t(),
+              repo :: Registry.repo_t(),
+              reference :: Registry.reference_t(),
               ctx :: OCI.Context.t()
             ) ::
               {:ok, manifest :: binary(), content_type :: String.t()}
@@ -127,8 +129,8 @@ defmodule OCI.Storage.Adapter do
   """
   @callback get_blob_upload_status(
               storage :: t(),
-              repo :: String.t(),
-              uuid :: String.t(),
+              repo :: Registry.repo_t(),
+              uuid :: Registry.uuid_t(),
               ctx :: OCI.Context.t()
             ) ::
               {:ok, range :: String.t()} | {:error, term()} | {:error, term(), error_details_t}
@@ -138,8 +140,8 @@ defmodule OCI.Storage.Adapter do
   """
   @callback get_blob_upload_offset(
               storage :: t(),
-              repo :: String.t(),
-              uuid :: String.t(),
+              repo :: Registry.repo_t(),
+              uuid :: Registry.uuid_t(),
               ctx :: OCI.Context.t()
             ) ::
               {:ok, size :: non_neg_integer()}
@@ -151,8 +153,8 @@ defmodule OCI.Storage.Adapter do
   """
   @callback manifest_exists?(
               storage :: t(),
-              repo :: String.t(),
-              reference :: String.t(),
+              repo :: Registry.repo_t(),
+              reference :: Registry.reference_t(),
               ctx :: OCI.Context.t()
             ) ::
               boolean()
@@ -166,8 +168,12 @@ defmodule OCI.Storage.Adapter do
   @doc """
   Initiates a blob upload session.
   """
-  @callback initiate_blob_upload(storage :: t(), repo :: String.t(), ctx :: OCI.Context.t()) ::
-              {:ok, upload_id :: String.t()}
+  @callback initiate_blob_upload(
+              storage :: t(),
+              repo :: Registry.repo_t(),
+              ctx :: OCI.Context.t()
+            ) ::
+              {:ok, upload_id :: Registry.uuid_t()}
               | {:error, term()}
               | {:error, term(), error_details_t}
 
@@ -176,11 +182,11 @@ defmodule OCI.Storage.Adapter do
   """
   @callback list_tags(
               storage :: t(),
-              repo :: String.t(),
+              repo :: Registry.repo_t(),
               pagination :: OCI.Pagination.t(),
               ctx :: OCI.Context.t()
             ) ::
-              {:ok, tags :: [String.t()]}
+              {:ok, tags :: [Registry.tag_t()]}
               | {:error, :NAME_UNKNOWN}
               | {:error, :NAME_UNKNOWN, error_details_t}
 
@@ -189,9 +195,9 @@ defmodule OCI.Storage.Adapter do
   """
   @callback mount_blob(
               storage :: t(),
-              repo :: String.t(),
-              digest :: String.t(),
-              from_repo :: String.t(),
+              repo :: Registry.repo_t(),
+              digest :: Registry.digest_t(),
+              from_repo :: Registry.repo_t(),
               ctx :: OCI.Context.t()
             ) ::
               :ok | {:error, :BLOB_UNKNOWN} | {:error, :BLOB_UNKNOWN, error_details_t}
@@ -201,10 +207,10 @@ defmodule OCI.Storage.Adapter do
   """
   @callback store_manifest(
               storage :: t(),
-              repo :: String.t(),
-              reference :: String.t(),
+              repo :: Registry.repo_t(),
+              reference :: Registry.reference_t(),
               manifest :: map(),
-              manifest_digest :: String.t(),
+              manifest_digest :: Registry.digest_t(),
               ctx :: OCI.Context.t()
             ) ::
               :ok
@@ -214,15 +220,16 @@ defmodule OCI.Storage.Adapter do
   @doc """
   Checks if a repository exists.
   """
-  @callback repo_exists?(storage :: t(), repo :: String.t(), ctx :: OCI.Context.t()) :: boolean()
+  @callback repo_exists?(storage :: t(), repo :: Registry.repo_t(), ctx :: OCI.Context.t()) ::
+              boolean()
 
   @doc """
   Uploads a chunk of data to an ongoing blob upload.
   """
   @callback upload_blob_chunk(
               storage :: t(),
-              repo :: String.t(),
-              uuid :: String.t(),
+              repo :: Registry.repo_t(),
+              uuid :: Registry.uuid_t(),
               chunk :: binary(),
               content_range :: String.t(),
               ctx :: OCI.Context.t()
@@ -239,8 +246,8 @@ defmodule OCI.Storage.Adapter do
   """
   @callback list_referrers(
               storage :: t(),
-              repo :: String.t(),
-              subject_digest :: String.t(),
+              repo :: Registry.repo_t(),
+              subject_digest :: Registry.digest_t(),
               filters :: map(),
               ctx :: OCI.Context.t()
             ) ::
@@ -251,8 +258,8 @@ defmodule OCI.Storage.Adapter do
   """
   @callback put_referrer(
               storage :: t(),
-              repo :: String.t(),
-              subject_digest :: String.t(),
+              repo :: Registry.repo_t(),
+              subject_digest :: Registry.digest_t(),
               descriptor :: map(),
               ctx :: OCI.Context.t()
             ) ::
@@ -263,8 +270,8 @@ defmodule OCI.Storage.Adapter do
   """
   @callback upload_exists?(
               storage :: t(),
-              repo :: String.t(),
-              uuid :: String.t(),
+              repo :: Registry.repo_t(),
+              uuid :: Registry.uuid_t(),
               ctx :: OCI.Context.t()
             ) ::
               boolean()
