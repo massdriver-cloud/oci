@@ -268,21 +268,12 @@ defmodule OCI.Plug.Handler do
 
   defp dispatch(%{method: "PUT"} = conn, :manifests, registry, repo, reference, ctx) do
     manifest = conn.params
+    raw_manifest = conn.assigns[:oci_raw_manifest]
     manifest_digest = conn.assigns[:oci_digest]
 
-    with :ok <- Registry.store_manifest(registry, repo, reference, manifest, manifest_digest, ctx) do
-      maybe_set_oci_subject = fn conn ->
-        case get_in(conn.params, ["subject", "digest"]) do
-          nil ->
-            conn
-
-          subject_digest ->
-            put_resp_header(conn, "oci-subject", subject_digest)
-        end
-      end
-
+    with :ok <- Registry.store_manifest(registry, repo, reference, manifest, raw_manifest, manifest_digest, ctx) do
       conn
-      |> maybe_set_oci_subject.()
+      |> maybe_set_oci_subject(manifest)
       |> put_resp_header("location", Registry.manifests_reference_path(repo, reference))
       |> send_resp(201, "")
     end
@@ -317,6 +308,13 @@ defmodule OCI.Plug.Handler do
     path = conn.request_path
 
     {:error, :UNSUPPORTED, %{method: method, path: path}}
+  end
+
+  defp maybe_set_oci_subject(conn, manifest) do
+    case get_in(manifest, ["subject", "digest"]) do
+      nil -> conn
+      subject_digest -> put_resp_header(conn, "oci-subject", subject_digest)
+    end
   end
 
   defp pagination(params) do

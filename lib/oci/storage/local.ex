@@ -258,10 +258,8 @@ defmodule OCI.Storage.Local do
 
   @impl true
   def store_manifest(storage, repo, reference, manifest, manifest_digest, _ctx) do
-    manifest_json = Jason.encode!(manifest)
-
     :ok = File.mkdir_p!(manifests_dir(storage, repo))
-    File.write!(digest_path(storage, repo, manifest_digest), manifest_json)
+    File.write!(digest_path(storage, repo, manifest_digest), manifest)
 
     # If reference is a tag, create a tag reference
     if !String.starts_with?(reference, "sha256:") do

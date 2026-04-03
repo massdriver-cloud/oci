@@ -223,7 +223,7 @@ defmodule OCI.Registry do
     end
   end
 
-  def store_manifest(%{storage: storage}, repo, reference, manifest, manifest_digest, ctx) do
+  def store_manifest(%{storage: storage}, repo, reference, manifest, raw_manifest, manifest_digest, ctx) do
     required_blobs = referenced_blobs(manifest)
 
     missing =
@@ -239,11 +239,11 @@ defmodule OCI.Registry do
                storage,
                repo,
                reference,
-               manifest,
+               raw_manifest,
                manifest_digest,
                ctx
              ) do
-        maybe_index_referrer(storage, repo, manifest, manifest_digest, ctx)
+        maybe_index_referrer(storage, repo, manifest, raw_manifest, manifest_digest, ctx)
         :ok
       end
     end
@@ -259,10 +259,10 @@ defmodule OCI.Registry do
     adapter(storage).list_referrers(storage, repo, digest, filters, ctx)
   end
 
-  defp maybe_index_referrer(storage, repo, manifest, manifest_digest, ctx) do
+  defp maybe_index_referrer(storage, repo, manifest, raw_manifest, manifest_digest, ctx) do
     case manifest["subject"] do
       %{"digest" => subject_digest} when is_binary(subject_digest) ->
-        descriptor = build_referrer_descriptor(manifest, manifest_digest)
+        descriptor = build_referrer_descriptor(manifest, raw_manifest, manifest_digest)
         adapter(storage).put_referrer(storage, repo, subject_digest, descriptor, ctx)
 
       _ ->
@@ -270,16 +270,14 @@ defmodule OCI.Registry do
     end
   end
 
-  defp build_referrer_descriptor(manifest, manifest_digest) do
-    manifest_json = Jason.encode!(manifest)
-
+  defp build_referrer_descriptor(manifest, raw_manifest, manifest_digest) do
     artifact_type =
       manifest["artifactType"] || get_in(manifest, ["config", "mediaType"])
 
     descriptor = %{
       "mediaType" => manifest["mediaType"],
       "digest" => manifest_digest,
-      "size" => byte_size(manifest_json),
+      "size" => byte_size(raw_manifest),
       "artifactType" => artifact_type
     }
 

@@ -204,7 +204,7 @@ defmodule OCI.Storage.Adapter do
               storage :: t(),
               repo :: Registry.repo_t(),
               reference :: Registry.reference_t(),
-              manifest :: map(),
+              manifest :: binary(),
               manifest_digest :: Registry.digest_t(),
               ctx :: OCI.Context.t()
             ) ::
