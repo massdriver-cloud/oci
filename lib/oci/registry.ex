@@ -239,6 +239,7 @@ defmodule OCI.Registry do
                storage,
                repo,
                reference,
+               manifest,
                raw_manifest,
                manifest_digest,
                ctx

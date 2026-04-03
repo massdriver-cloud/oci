@@ -257,9 +257,9 @@ defmodule OCI.Storage.Local do
   end
 
   @impl true
-  def store_manifest(storage, repo, reference, manifest, manifest_digest, _ctx) do
+  def store_manifest(storage, repo, reference, _manifest, raw_manifest, manifest_digest, _ctx) do
     :ok = File.mkdir_p!(manifests_dir(storage, repo))
-    File.write!(digest_path(storage, repo, manifest_digest), manifest)
+    File.write!(digest_path(storage, repo, manifest_digest), raw_manifest)
 
     # If reference is a tag, create a tag reference
     if !String.starts_with?(reference, "sha256:") do
