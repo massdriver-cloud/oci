@@ -223,7 +223,15 @@ defmodule OCI.Registry do
     end
   end
 
-  def store_manifest(%{storage: storage}, repo, reference, manifest, raw_manifest, manifest_digest, ctx) do
+  def store_manifest(
+        %{storage: storage},
+        repo,
+        reference,
+        manifest,
+        raw_manifest,
+        manifest_digest,
+        ctx
+      ) do
     required_blobs = referenced_blobs(manifest)
 
     missing =

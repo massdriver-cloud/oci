@@ -121,4 +121,31 @@ defmodule OCI.PlugTest do
              }
     end
   end
+
+  describe "PUT /v2/<name>/blobs/uploads/<uuid> closing PUT" do
+    test "finalizes a zero-byte blob when Content-Length header is omitted", %{conn: conn} do
+      open = post(conn, "/myimage/blobs/uploads")
+      assert open.status == 202
+      [location] = get_resp_header(open, "location")
+      uuid = location |> String.split("/") |> List.last()
+
+      empty_digest = digest("")
+
+      assert empty_digest ==
+               "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+      closing =
+        :put
+        |> conn("/myimage/blobs/uploads/#{uuid}?digest=#{empty_digest}", nil)
+        |> Map.put(:script_name, ["v2"])
+        |> Map.put(:assigns, %{oci_opts: conn.assigns.oci_opts})
+        |> basic_auth("myuser", "mypass")
+        |> OCI.Plug.call(conn.assigns.oci_opts)
+
+      assert get_req_header(closing, "content-length") == []
+      assert closing.status == 201
+      assert [blob_location] = get_resp_header(closing, "location")
+      assert blob_location == "/v2/myimage/blobs/#{empty_digest}"
+    end
+  end
 end

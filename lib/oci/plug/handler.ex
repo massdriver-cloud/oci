@@ -271,7 +271,16 @@ defmodule OCI.Plug.Handler do
     raw_manifest = conn.assigns[:oci_raw_manifest]
     manifest_digest = conn.assigns[:oci_digest]
 
-    with :ok <- Registry.store_manifest(registry, repo, reference, manifest, raw_manifest, manifest_digest, ctx) do
+    with :ok <-
+           Registry.store_manifest(
+             registry,
+             repo,
+             reference,
+             manifest,
+             raw_manifest,
+             manifest_digest,
+             ctx
+           ) do
       conn
       |> maybe_set_oci_subject(manifest)
       |> put_resp_header("location", Registry.manifests_reference_path(repo, reference))
@@ -334,18 +343,20 @@ defmodule OCI.Plug.Handler do
   end
 
   defp maybe_upload_final_chunk(conn, registry, repo, uuid, ctx) do
-    # The Content-Length header is required, but may be 0 if no final chunk is being uploaded.
-    conn
-    |> get_req_header("content-length")
-    |> List.first()
-    |> String.to_integer()
-    |> case do
+    # The closing PUT may have no body and no Content-Length header when the
+    # final chunk was uploaded earlier via PATCH (spec: "Content-Length: <length
+    # of chunk, if present>" and "OPTIONAL: <final chunk byte stream>").
+    content_length =
+      case get_req_header(conn, "content-length") do
+        [val | _] -> String.to_integer(val)
+        [] -> 0
+      end
+
+    case content_length do
       0 ->
-        # No chunk to upload with final PUT
         :ok
 
       _ ->
-        # Final chunk is included, upload it before completing the blob
         case Registry.upload_blob_chunk(
                registry,
                repo,
