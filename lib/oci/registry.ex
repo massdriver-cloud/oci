@@ -80,14 +80,13 @@ defmodule OCI.Registry do
   end
 
   @spec validate_repository_name(registry :: t(), repo :: repo_t()) ::
-          {:ok, repo :: repo_t()} | {:error, :NAME_INVALID, String.t()}
+          {:ok, repo :: repo_t()} | {:error, :NAME_INVALID, map()}
 
   def validate_repository_name(registry, repo) do
     if Regex.match?(registry.repo_name_pattern, repo) do
       {:ok, repo}
     else
-      {:error, :NAME_INVALID,
-       "Invalid repo name: #{repo}, must match pattern: #{inspect(registry.repo_name_pattern)}."}
+      {:error, :NAME_INVALID, %{repo: repo, pattern: inspect(registry.repo_name_pattern)}}
     end
   end
 
@@ -149,12 +148,11 @@ defmodule OCI.Registry do
     - `{:error, reason}` if the upload fails
   """
   def upload_blob_chunk(%{storage: storage}, repo, uuid, chunk, maybe_chunk_range, ctx) do
-    reg = adapter(storage)
-
-    with true <- reg.upload_exists?(storage, repo, uuid, ctx),
-         {:ok, size} <- reg.get_blob_upload_offset(storage, repo, uuid, ctx),
+    with :ok <- ensure_upload_exists(storage, repo, uuid, ctx),
+         {:ok, size} <- adapter(storage).get_blob_upload_offset(storage, repo, uuid, ctx),
          :ok <- verify_upload_order(size, maybe_chunk_range),
-         {:ok, range} <- reg.upload_blob_chunk(storage, repo, uuid, chunk, maybe_chunk_range, ctx) do
+         {:ok, range} <-
+           adapter(storage).upload_blob_chunk(storage, repo, uuid, chunk, maybe_chunk_range, ctx) do
       {:ok, blobs_uploads_path(repo, uuid), range}
     end
   end
@@ -185,14 +183,16 @@ defmodule OCI.Registry do
     do: {:error, :DIGEST_INVALID, %{repo: repo, uuid: uuid}}
 
   def complete_blob_upload(%{storage: storage}, repo, uuid, digest, ctx) do
-    with true <- adapter(storage).upload_exists?(storage, repo, uuid, ctx),
+    with :ok <- ensure_upload_exists(storage, repo, uuid, ctx),
          :ok <- adapter(storage).complete_blob_upload(storage, repo, uuid, digest, ctx) do
       {:ok, blobs_digest_path(repo, digest)}
     end
   end
 
   def cancel_blob_upload(%{storage: storage}, repo, uuid, ctx) do
-    adapter(storage).cancel_blob_upload(storage, repo, uuid, ctx)
+    with :ok <- ensure_upload_exists(storage, repo, uuid, ctx) do
+      adapter(storage).cancel_blob_upload(storage, repo, uuid, ctx)
+    end
   end
 
   def blob_exists?(%{storage: storage}, repo, digest, ctx) do
@@ -200,7 +200,9 @@ defmodule OCI.Registry do
   end
 
   def get_blob(%{storage: storage}, repo, digest, ctx) do
-    adapter(storage).get_blob(storage, repo, digest, ctx)
+    with :ok <- ensure_repo_exists(storage, repo, ctx) do
+      adapter(storage).get_blob(storage, repo, digest, ctx)
+    end
   end
 
   def delete_blob(%{enable_blob_deletion: false}, repo, digest, _ctx),
@@ -221,7 +223,15 @@ defmodule OCI.Registry do
     end
   end
 
-  def store_manifest(%{storage: storage}, repo, reference, manifest, manifest_digest, ctx) do
+  def store_manifest(
+        %{storage: storage},
+        repo,
+        reference,
+        manifest,
+        raw_manifest,
+        manifest_digest,
+        ctx
+      ) do
     required_blobs = referenced_blobs(manifest)
 
     missing =
@@ -238,10 +248,11 @@ defmodule OCI.Registry do
                repo,
                reference,
                manifest,
+               raw_manifest,
                manifest_digest,
                ctx
              ) do
-        maybe_index_referrer(storage, repo, manifest, manifest_digest, ctx)
+        maybe_index_referrer(storage, repo, manifest, raw_manifest, manifest_digest, ctx)
         :ok
       end
     end
@@ -257,10 +268,10 @@ defmodule OCI.Registry do
     adapter(storage).list_referrers(storage, repo, digest, filters, ctx)
   end
 
-  defp maybe_index_referrer(storage, repo, manifest, manifest_digest, ctx) do
+  defp maybe_index_referrer(storage, repo, manifest, raw_manifest, manifest_digest, ctx) do
     case manifest["subject"] do
       %{"digest" => subject_digest} when is_binary(subject_digest) ->
-        descriptor = build_referrer_descriptor(manifest, manifest_digest)
+        descriptor = build_referrer_descriptor(manifest, raw_manifest, manifest_digest)
         adapter(storage).put_referrer(storage, repo, subject_digest, descriptor, ctx)
 
       _ ->
@@ -268,16 +279,14 @@ defmodule OCI.Registry do
     end
   end
 
-  defp build_referrer_descriptor(manifest, manifest_digest) do
-    manifest_json = Jason.encode!(manifest)
-
+  defp build_referrer_descriptor(manifest, raw_manifest, manifest_digest) do
     artifact_type =
       manifest["artifactType"] || get_in(manifest, ["config", "mediaType"])
 
     descriptor = %{
       "mediaType" => manifest["mediaType"],
       "digest" => manifest_digest,
-      "size" => byte_size(manifest_json),
+      "size" => byte_size(raw_manifest),
       "artifactType" => artifact_type
     }
 
@@ -298,7 +307,9 @@ defmodule OCI.Registry do
   def referenced_blobs(_manifest), do: []
 
   def get_manifest(%{storage: storage}, repo, reference, ctx) do
-    adapter(storage).get_manifest(storage, repo, reference, ctx)
+    with :ok <- ensure_repo_exists(storage, repo, ctx) do
+      adapter(storage).get_manifest(storage, repo, reference, ctx)
+    end
   end
 
   def manifest_exists?(%{storage: storage}, repo, reference, ctx) do
@@ -306,10 +317,8 @@ defmodule OCI.Registry do
   end
 
   def list_tags(%{storage: storage}, repo, pagination, ctx) do
-    if repo_exists?(storage, repo, ctx) do
+    with :ok <- ensure_repo_exists(storage, repo, ctx) do
       adapter(storage).list_tags(storage, repo, pagination, ctx)
-    else
-      {:error, :NAME_UNKNOWN, %{repo: repo}}
     end
   end
 
@@ -366,17 +375,14 @@ defmodule OCI.Registry do
   Returns {:ok, location} on success, {:error, :BLOB_UNKNOWN} if the source blob doesn't exist.
   """
   def mount_blob(%__MODULE__{storage: storage} = registry, repo, digest, from_repo, ctx) do
-    if repo_exists?(storage, from_repo, ctx) do
+    with :ok <- ensure_repo_exists(storage, from_repo, ctx) do
       if blob_exists?(registry, from_repo, digest, ctx) do
-        # credo:disable-for-next-line
         with :ok <- adapter(storage).mount_blob(storage, repo, digest, from_repo, ctx) do
           {:ok, blobs_digest_path(repo, digest)}
         end
       else
         initiate_blob_upload(registry, repo, ctx)
       end
-    else
-      {:error, :NAME_UNKNOWN, %{repo: repo}}
     end
   end
 
@@ -429,6 +435,25 @@ defmodule OCI.Registry do
   @spec blobs_uploads_path(repo_t(), uuid_t()) :: String.t()
   def blobs_uploads_path(repo, uuid) do
     "/#{api_version()}/#{repo}/blobs/uploads/#{uuid}"
+  end
+
+  # Precondition checks — used by registry functions to validate state before
+  # delegating to storage adapters.
+
+  defp ensure_repo_exists(storage, repo, ctx) do
+    if adapter(storage).repo_exists?(storage, repo, ctx) do
+      :ok
+    else
+      {:error, :NAME_UNKNOWN, %{repo: repo}}
+    end
+  end
+
+  defp ensure_upload_exists(storage, repo, uuid, ctx) do
+    if adapter(storage).upload_exists?(storage, repo, uuid, ctx) do
+      :ok
+    else
+      {:error, :BLOB_UPLOAD_UNKNOWN, %{repo: repo, uuid: uuid}}
+    end
   end
 
   @doc """

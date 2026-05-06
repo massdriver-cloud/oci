@@ -30,15 +30,6 @@ defmodule OCI.Plug.Handler do
           %Plug.Conn{} = conn ->
             conn
 
-          {:error, oci_error_status} ->
-            you_suck_and_are_a_bad_person_messsage = """
-            You suck and are a bad person.
-
-            Please return error details for #{oci_error_status} in #{inspect(ctx)}
-            """
-
-            error_resp(conn, oci_error_status, you_suck_and_are_a_bad_person_messsage)
-
           {:error, oci_error_status, details} ->
             error_resp(conn, oci_error_status, details)
         end
@@ -55,7 +46,7 @@ defmodule OCI.Plug.Handler do
           repo :: String.t(),
           id :: String.t(),
           ctx :: OCI.Context.t()
-        ) :: Plug.Conn.t() | {:error, atom()} | {:error, atom(), String.t()}
+        ) :: Plug.Conn.t() | {:error, atom(), map() | String.t()}
   defp dispatch(%{method: "GET"} = conn, :tags_list, registry, repo, _id, ctx) do
     pag = pagination(conn.query_params)
 
@@ -179,7 +170,7 @@ defmodule OCI.Plug.Handler do
         error_resp(
           conn,
           :BLOB_UPLOAD_INVALID,
-          "Content-Range header is required for PATCH requests"
+          %{reason: "Content-Range header is required for PATCH requests"}
         )
 
       _ ->
@@ -277,21 +268,21 @@ defmodule OCI.Plug.Handler do
 
   defp dispatch(%{method: "PUT"} = conn, :manifests, registry, repo, reference, ctx) do
     manifest = conn.params
+    raw_manifest = conn.assigns[:oci_raw_manifest]
     manifest_digest = conn.assigns[:oci_digest]
 
-    with :ok <- Registry.store_manifest(registry, repo, reference, manifest, manifest_digest, ctx) do
-      maybe_set_oci_subject = fn conn ->
-        case get_in(conn.params, ["subject", "digest"]) do
-          nil ->
-            conn
-
-          subject_digest ->
-            put_resp_header(conn, "oci-subject", subject_digest)
-        end
-      end
-
+    with :ok <-
+           Registry.store_manifest(
+             registry,
+             repo,
+             reference,
+             manifest,
+             raw_manifest,
+             manifest_digest,
+             ctx
+           ) do
       conn
-      |> maybe_set_oci_subject.()
+      |> maybe_set_oci_subject(manifest)
       |> put_resp_header("location", Registry.manifests_reference_path(repo, reference))
       |> send_resp(201, "")
     end
@@ -325,7 +316,14 @@ defmodule OCI.Plug.Handler do
     method = conn.method
     path = conn.request_path
 
-    {:error, :UNSUPPORTED, "Unsupported [#{method}] #{path}"}
+    {:error, :UNSUPPORTED, %{method: method, path: path}}
+  end
+
+  defp maybe_set_oci_subject(conn, manifest) do
+    case get_in(manifest, ["subject", "digest"]) do
+      nil -> conn
+      subject_digest -> put_resp_header(conn, "oci-subject", subject_digest)
+    end
   end
 
   defp pagination(params) do
@@ -345,18 +343,20 @@ defmodule OCI.Plug.Handler do
   end
 
   defp maybe_upload_final_chunk(conn, registry, repo, uuid, ctx) do
-    # The Content-Length header is required, but may be 0 if no final chunk is being uploaded.
-    conn
-    |> get_req_header("content-length")
-    |> List.first()
-    |> String.to_integer()
-    |> case do
+    # The closing PUT may have no body and no Content-Length header when the
+    # final chunk was uploaded earlier via PATCH (spec: "Content-Length: <length
+    # of chunk, if present>" and "OPTIONAL: <final chunk byte stream>").
+    content_length =
+      case get_req_header(conn, "content-length") do
+        [val | _] -> String.to_integer(val)
+        [] -> 0
+      end
+
+    case content_length do
       0 ->
-        # No chunk to upload with final PUT
         :ok
 
       _ ->
-        # Final chunk is included, upload it before completing the blob
         case Registry.upload_blob_chunk(
                registry,
                repo,
@@ -366,7 +366,6 @@ defmodule OCI.Plug.Handler do
                ctx
              ) do
           {:ok, _, _} -> :ok
-          {:error, reason} -> {:error, reason}
           {:error, reason, details} -> {:error, reason, details}
         end
     end

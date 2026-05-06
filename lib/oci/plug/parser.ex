@@ -25,32 +25,15 @@ defmodule OCI.Plug.Parser do
   ## Content Types Handled
 
   ### application/octet-stream
-  Handles binary blob uploads by reading the full body and storing
-  it in the connection assigns under the `:oci_blob_chunk` key.
+  Reads the full body and stores it in `conn.assigns[:oci_blob_chunk]`.
 
-  ### application/vnd.oci.image.manifest.v1+json
-  Handles OCI image manifest uploads by:
-  1. Reading the full body
-  2. Computing its SHA256 digest
-  3. Storing the digest in the connection assigns
-  4. Decoding the JSON manifest
+  ### OCI manifest types
+  Reads the full body, computes its SHA256 digest, decodes the JSON, and stores
+  the raw body and digest in conn assigns (`:oci_raw_manifest` and `:oci_digest`).
+  The decoded manifest is returned as params.
 
   ### Other Content Types
-  Passes through to the next parser in the chain.
-
-  ## Parameters
-    - conn: The Plug.Conn struct
-    - type: The content type
-    - subtype: The content subtype
-    - headers: The request headers
-    - opts: Parser options containing a :json_decoder key for manifest parsing
-
-  ## Returns
-    - For octet-stream: `{:ok, %{}, conn}` on successful parsing
-    - For manifest: `{:ok, manifest, conn}` on successful parsing
-    - For other types: `{:next, conn}` to pass to the next parser
-    - `{:error, reason}` on failure
-    - Raises `Plug.Parsers.ParseError` on JSON decode failure for manifests
+  Passes through to the next parser via `{:next, conn}`.
   """
   def parse(conn, "application", "octet-stream", _headers, opts) do
     read_full_body(conn, opts, "")
@@ -65,22 +48,25 @@ defmodule OCI.Plug.Parser do
     end
   end
 
-  def parse(conn, "application", "vnd.oci.image.manifest.v1+json", headers, opts) do
-    parse_oci_manifest(conn, headers, opts)
+  def parse(conn, "application", "vnd.oci.image.manifest.v1+json", _headers, opts) do
+    read_oci_manifest(conn, opts)
   end
 
-  def parse(conn, "application", "vnd.oci.image.index.v1+json", headers, opts) do
-    parse_oci_manifest(conn, headers, opts)
+  def parse(conn, "application", "vnd.oci.image.index.v1+json", _headers, opts) do
+    read_oci_manifest(conn, opts)
   end
 
   def parse(conn, _type, _subtype, _headers, _opts), do: {:next, conn}
 
-  defp parse_oci_manifest(conn, _headers, opts) do
-    read_full_body(conn, opts, "")
-    |> case do
+  defp read_oci_manifest(conn, opts) do
+    case read_full_body(conn, opts, "") do
       {:ok, full_body, conn} ->
         digest = :crypto.hash(:sha256, full_body) |> Base.encode16(case: :lower)
-        conn = Plug.Conn.assign(conn, :oci_digest, "sha256:#{digest}")
+
+        conn =
+          conn
+          |> Plug.Conn.assign(:oci_digest, "sha256:#{digest}")
+          |> Plug.Conn.assign(:oci_raw_manifest, full_body)
 
         decoder = Keyword.fetch!(opts, :json_decoder)
 
@@ -92,7 +78,7 @@ defmodule OCI.Plug.Parser do
             raise Plug.Parsers.ParseError, exception: %Plug.Parsers.BadEncodingError{}
         end
 
-      err ->
+      {:error, _} = err ->
         err
     end
   end
